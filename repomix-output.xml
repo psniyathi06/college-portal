@@ -1,0 +1,5884 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+backend-node/.env
+backend-node/app.js
+backend-node/config/elasticsearch.js
+backend-node/models/attendance.js
+backend-node/models/marks.js
+backend-node/models/parent.js
+backend-node/models/student.js
+backend-node/models/teacher.js
+backend-node/package.json
+backend-node/routes/attendance.js
+backend-node/routes/auth.js
+backend-node/routes/marks.js
+backend-node/routes/search.js
+backend-node/routes/teacher.js
+backend-node/sample-data.js
+backend-node/scripts/sync-students.js
+backend-node/seed.js
+backend-node/utils/db.js
+backend-node/utils/rabbitmq.js
+backend-node/utils/redis.js
+debug_redis.py
+docker-compose.yml
+frontend/attendance_page.html
+frontend/attendance.js
+frontend/design-system.css
+frontend/index.html
+frontend/marks_page.html
+frontend/marks.js
+frontend/parent_alerts.html
+frontend/parent_alerts.js
+frontend/parent_analytics.html
+frontend/parent_analytics.js
+frontend/parent_home.html
+frontend/parent_home.js
+frontend/parent.css
+frontend/script.js
+frontend/student.css
+frontend/student.html
+frontend/student.js
+frontend/style.css
+frontend/teacher_home.html
+frontend/teacher_home.js
+frontend/teacher.css
+frontend/teacher.html
+frontend/teacher.js
+ml-flask/_init_.py
+ml-flask/app.py
+ml-flask/Dockerfile
+ml-flask/model.py
+ml-flask/requirements.txt
+ml-flask/test_data.json
+ml-flask/worker.py
+test_risk_v2.py
+test_risk_v3.py
+test_risk.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="backend-node/.env">
+MONGO_URI=mongodb://localhost:27017/college_portal
+REDIS_URI=redis://localhost:6379
+RABBITMQ_URI=amqp://localhost
+PORT=5000
+</file>
+
+<file path="backend-node/app.js">
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+require("dotenv").config();
+
+const connectDB = require("./utils/db");
+const { connectRedis } = require("./utils/redis");
+const { connectRabbitMQ } = require("./utils/rabbitmq");
+
+// Express App
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+// Routes
+app.use("/auth", require("./routes/auth"));
+app.use("/attendance", require("./routes/attendance"));
+app.use("/marks", require("./routes/marks"));
+app.use("/teacher", require("./routes/teacher"));
+app.use("/api/search", require("./routes/search"));
+
+async function startServer() {
+  await connectDB();
+  await connectRedis();
+  await connectRabbitMQ();
+
+  const port = process.env.PORT || 5000;
+  app.listen(port, () => {
+    console.log("🚀 Backend running on port " + port);
+  });
+}
+
+startServer();
+
+module.exports = app;
+</file>
+
+<file path="backend-node/config/elasticsearch.js">
+const { Client } = require('@elastic/elasticsearch');
+require('dotenv').config();
+
+const client = new Client({
+    node: process.env.ELASTICSEARCH_NODE || 'http://localhost:9200',
+    auth: {
+        username: process.env.ELASTIC_USERNAME || 'elastic',
+        password: process.env.ELASTIC_PASSWORD || 'changeme'
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
+const checkConnection = async () => {
+    try {
+        const health = await client.cluster.health({});
+        console.log('Elasticsearch cluster health:', health);
+        return true;
+    } catch (err) {
+        console.error('Elasticsearch connection failed:', err);
+        return false;
+    }
+};
+
+module.exports = {
+    client,
+    checkConnection
+};
+</file>
+
+<file path="backend-node/models/attendance.js">
+const mongoose = require("mongoose");
+
+const AttendanceSchema = new mongoose.Schema(
+  {
+    rollNo: { type: String, required: true }, // e.g., "101"
+    date: { type: String, required: true },   // e.g., "2025-11-21"
+    status: { type: String, enum: ["Present", "Absent"], required: true },
+    period: { type: String, required: true }, // e.g., "1", "2", "3", "4"
+    subject: { type: String, required: true }, // e.g., "Physics"
+  },
+  { timestamps: true }
+);
+
+// Unique attendance per student, per day, per PERIOD
+AttendanceSchema.index({ rollNo: 1, date: 1, period: 1 }, { unique: true });
+
+module.exports = mongoose.model("Attendance", AttendanceSchema);
+</file>
+
+<file path="backend-node/models/marks.js">
+/*const mongoose = require("mongoose");
+
+const MarksSchema = new mongoose.Schema({
+  rollNo: { type: String, required: true },
+  subject: { type: String, required: true },
+  marks: { type: Number, required: true },
+  date: { type: String, required: true }   // e.g., "2025-11-21"
+});
+
+module.exports = mongoose.model("Marks", MarksSchema);
+*/
+
+const mongoose = require("mongoose");
+
+const MarksSchema = new mongoose.Schema(
+  {
+    rollNo: { type: String, required: true },          // "101"
+    subject: { type: String, required: true },         // "Physics"
+
+    examType: {
+      type: String,
+      required: true,
+      enum: ["MID-1", "MID-2", "UNIT-1", "UNIT-2", "FINAL"],
+    },
+
+    marks: { type: Number, required: true },
+    maxMarks: { type: Number, default: 30 },
+
+    academicYear: { type: String, default: "2025-26" },
+    semester: { type: Number, default: 3 },
+
+    date: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
+
+// unique: one record per (student, subject, examType)
+MarksSchema.index({ rollNo: 1, subject: 1, examType: 1 }, { unique: true });
+
+module.exports = mongoose.model("Marks", MarksSchema);
+</file>
+
+<file path="backend-node/models/parent.js">
+/*const mongoose = require("mongoose");
+
+const ParentSchema = new mongoose.Schema({
+  studentRollNo: { type: String, required: true }, // child’s roll number
+  password: { type: String, required: true }
+});
+
+module.exports = mongoose.model("Parent", ParentSchema);
+*/
+
+const mongoose = require("mongoose");
+
+const ParentSchema = new mongoose.Schema(
+  {
+    studentRollNo: { type: String, required: true }, // "101"
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },      // "kmit123"
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Parent", ParentSchema);
+</file>
+
+<file path="backend-node/models/student.js">
+/*const mongoose = require("mongoose");
+
+const StudentSchema = new mongoose.Schema({
+  rollNo: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  password: { type: String, required: true },
+
+  // New field — link student to teacher
+  classTeacher: { type: String, required: true }, // teacher email
+
+  // Parent linking
+  parentRollNo: { type: String, required: true },
+});
+
+module.exports = mongoose.model("Student", StudentSchema);
+*/
+
+const mongoose = require("mongoose");
+
+const StudentSchema = new mongoose.Schema(
+  {
+    rollNo: { type: String, required: true, unique: true }, // "101"
+    name: { type: String, required: true },
+
+    password: { type: String, required: true }, // "kmit123"
+
+    section: {
+      type: String,
+      required: true,
+      enum: ["A", "B", "C", "D"],
+    },
+
+    branch: { type: String, default: "CSE" },
+    semester: { type: Number, default: 3 },
+
+    classTeacher: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Teacher",
+    },
+
+    parentRollNo: { type: String }, // same as rollNo, e.g., "101"
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Student", StudentSchema);
+</file>
+
+<file path="backend-node/models/teacher.js">
+/*const mongoose = require("mongoose");
+
+const TeacherSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  password: { type: String, required: true }
+});
+
+module.exports = mongoose.model("Teacher", TeacherSchema);
+*/
+
+const mongoose = require("mongoose");
+
+const TeacherSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },                 // "Teacher A"
+    email: { type: String, required: true, unique: true },  // "teacherA@example.com"
+    password: { type: String, required: true },             // "kmit123"
+
+    role: {
+      type: String,
+      enum: ["mentor", "admin"],
+      default: "mentor",
+    },
+
+    sections: [
+      {
+        type: String,
+        enum: ["A", "B", "C", "D"],
+        required: true,
+      },
+    ],
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Teacher", TeacherSchema);
+</file>
+
+<file path="backend-node/package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@elastic/elasticsearch": "^9.2.0",
+    "amqplib": "^0.10.9",
+    "bcryptjs": "^3.0.3",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "mongoose": "^8.20.1",
+    "redis": "^5.10.0"
+  }
+}
+</file>
+
+<file path="backend-node/routes/attendance.js">
+const express = require("express");
+const Attendance = require("../models/attendance");
+const Marks = require("../models/marks");
+const { sendToQueue } = require("../utils/rabbitmq");
+
+const router = express.Router();
+
+// HELPER → calculate attendance %
+async function calculateAttendancePercent(rollNo) {
+  const total = await Attendance.countDocuments({ rollNo });
+  const presentDays = await Attendance.countDocuments({
+    rollNo,
+    status: "Present",
+  });
+
+  if (total === 0) return 0;
+
+  return Math.round((presentDays / total) * 100);
+}
+
+// HELPER → get latest average marks
+async function getLatestMarks(rollNo) {
+  const records = await Marks.find({ rollNo });
+
+  if (records.length === 0) return 0;
+
+  const sum = records.reduce((a, b) => a + b.marks, 0);
+  return Math.round(sum / records.length);
+}
+// CHECK BULK ATTENDANCE (to warn before overwrite)
+router.post("/check-bulk", async (req, res) => {
+  try {
+    const { rollNos, date, period } = req.body;
+
+    if (!rollNos || !Array.isArray(rollNos) || !date || !period) {
+      return res.status(400).json({ message: "rollNos (array), date, and period required" });
+    }
+
+    // Find all attendance records for these students on this date & period
+    const existing = await Attendance.find({
+      rollNo: { $in: rollNos },
+      date,
+      period
+    });
+
+    const existingRollNos = existing.map(r => r.rollNo);
+
+    res.json({
+      exists: existingRollNos.length > 0,
+      existingRollNos
+    });
+  } catch (err) {
+    console.error("Check bulk error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// TEACHER UPDATES ATTENDANCE
+router.post("/update", async (req, res) => {
+  try {
+    const { rollNo, date, status, period, subject } = req.body; // Added subject
+
+    if (!rollNo || !date || !status || !period || !subject) {
+      return res.status(400).json({ message: "rollNo, date, status, period, and subject are required" });
+    }
+
+    // Use findOneAndUpdate with upsert: true
+    const record = await Attendance.findOneAndUpdate(
+      { rollNo, date, period },
+      { status, subject }, // Update subject too
+      { new: true, upsert: true }
+    );
+
+    const attendancePercent = await calculateAttendancePercent(rollNo);
+    const avgMarks = await getLatestMarks(rollNo);
+
+    sendToQueue(
+      JSON.stringify({
+        type: "attendance_update",
+        rollNo,
+        attendance: attendancePercent,
+        marks: avgMarks,
+      })
+    );
+
+    res.json({
+      message: "Attendance updated successfully",
+      attendancePercent,
+      avgMarks,
+    });
+  } catch (err) {
+    console.error("Attendance update error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// GET ATTENDANCE BY ROLL NO
+router.get("/:rollNo", async (req, res) => {
+  try {
+    const { rollNo } = req.params;
+
+    const records = await Attendance.find({ rollNo }).sort({ date: 1, period: 1 });
+
+    res.json({
+      attendance: records,
+    });
+  } catch (err) {
+    console.error("Get attendance error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend-node/routes/auth.js">
+console.log("AUTH ROUTES LOADED!!!");
+const express = require("express");
+const Student = require("../models/student");
+const Teacher = require("../models/teacher");
+const Parent = require("../models/parent");
+const redisClient = require("../utils/redis").client;
+
+const router = express.Router();
+
+/* ============================
+      STUDENT LOGIN
+   POST /auth/student
+=============================== */
+router.post("/student", async (req, res) => {
+  try {
+    const { rollNo, password } = req.body;
+
+    if (!rollNo || !password) {
+      return res.status(400).json({ message: "rollNo and password required" });
+    }
+
+    const student = await Student.findOne({ rollNo });
+    if (!student) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    // Plain text password check; all passwords = "kmit123"
+    if (student.password !== password) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    res.json({ message: "Student login successful", student });
+  } catch (err) {
+    console.error("Student auth error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+/* ============================
+      TEACHER LOGIN
+   POST /auth/teacher
+=============================== */
+router.post("/teacher", async (req, res) => {
+  try {
+    const { name, password } = req.body;
+
+    if (!name || !password) {
+      return res.status(400).json({ message: "name and password required" });
+    }
+
+    const teacher = await Teacher.findOne({ name });
+    if (!teacher) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (teacher.password !== password) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    res.json({ message: "Teacher login successful", teacher });
+  } catch (err) {
+    console.error("Teacher auth error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+/* ============================
+       PARENT LOGIN + ALERTS
+   POST /auth/parent
+=============================== */
+router.post("/parent", async (req, res) => {
+  try {
+    const { rollNo, password } = req.body;
+
+    if (!rollNo || !password) {
+      return res.status(400).json({ message: "rollNo (student roll number) and password required" });
+    }
+
+    // 1. Find the Parent by studentRollNo
+    // The frontend sends "rollNo" from the input field
+    const parent = await Parent.findOne({ studentRollNo: rollNo });
+    if (!parent) {
+      return res.status(400).json({ message: "Invalid credentials (parent not found)" });
+    }
+
+    // 2. Check password
+    if (parent.password !== password) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    // 3. Find the associated Student
+    const student = await Student.findOne({ rollNo });
+    if (!student) {
+      // Should not happen if data is consistent, but handle it
+      return res.status(404).json({ message: "Linked student not found" });
+    }
+
+    // 4. Fetch Risk Data (Redis) - optional
+    let attendanceAlert = false;
+    let marksRisks = [];
+
+    try {
+      // Key matches set_risk_data.js: `risk:${rollNo}`
+      const riskData = await redisClient.get(`risk:${rollNo}`);
+      if (riskData) {
+        const risk = JSON.parse(riskData);
+        attendanceAlert = !!risk.attendance_risk;
+        marksRisks = risk.marks_risks || []; // Now expects a list strings
+      }
+    } catch (redisErr) {
+      console.error("Redis fetch error (ignoring):", redisErr);
+      // Don't fail the login if redis fails
+    }
+
+    res.json({
+      message: "Parent login successful",
+      student,
+      alerts: {
+        attendance: attendanceAlert,
+        marksRisks: marksRisks, // Send the list
+      },
+    });
+  } catch (err) {
+    console.error("Parent auth error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+/* ============================
+      REGISTER TEACHER
+   POST /auth/register
+=============================== */
+router.post("/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res
+        .status(400)
+        .json({ message: "name, email, password are required" });
+    }
+
+    const teacherExists = await Teacher.findOne({
+      $or: [{ email }, { name }],
+    });
+
+    if (teacherExists) {
+      return res.status(400).json({ message: "Teacher already exists" });
+    }
+
+    const newTeacher = new Teacher({
+      name,
+      email,
+      password, // plain "kmit123" if you want
+      role: "mentor",
+      sections: [],
+    });
+
+    await newTeacher.save();
+
+    res.json({
+      message: "Teacher registered successfully",
+      teacher: newTeacher,
+    });
+  } catch (err) {
+    console.error("Teacher register error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============================
+       TEST ROUTE
+=============================== */
+router.get("/ping", (req, res) => {
+  res.send("AUTH WORKING");
+});
+
+module.exports = router;
+</file>
+
+<file path="backend-node/routes/marks.js">
+const express = require("express");
+const Marks = require("../models/marks");
+const Attendance = require("../models/attendance");
+const { sendToQueue } = require("../utils/rabbitmq");
+
+const router = express.Router();
+
+// HELPER → calculate attendance %
+async function calculateAttendancePercent(rollNo) {
+  const total = await Attendance.countDocuments({ rollNo });
+  const presentDays = await Attendance.countDocuments({
+    rollNo,
+    status: "Present",
+  });
+
+  if (total === 0) return 0;
+
+  return Math.round((presentDays / total) * 100);
+}
+
+// HELPER → calculate average marks
+async function calculateAvgMarks(rollNo) {
+  const records = await Marks.find({ rollNo });
+  if (records.length === 0) return 0;
+
+  const sum = records.reduce((a, b) => a + b.marks, 0);
+  return Math.round(sum / records.length);
+}
+
+// TEACHER UPDATES MARKS
+router.post("/update", async (req, res) => {
+  try {
+    const { rollNo, subject, examType, marks, maxMarks, date } = req.body;
+
+    if (!rollNo || !subject || !examType || marks == null) {
+      return res.status(400).json({
+        message: "rollNo, subject, examType, marks are required",
+      });
+    }
+
+    // Upsert: update if exists, otherwise create
+    const record = await Marks.findOneAndUpdate(
+      { rollNo, subject, examType },
+      {
+        rollNo,
+        subject,
+        examType,
+        marks,
+        maxMarks: maxMarks ?? (examType === "FINAL" ? 100 : 30),
+        date: date ? new Date(date) : Date.now(),
+      },
+      { new: true, upsert: true, runValidators: true }
+    );
+
+    const attendancePercent = await calculateAttendancePercent(rollNo);
+    const allMarks = await Marks.find({ rollNo }); // Fetch all marks for risk analysis
+
+    sendToQueue(
+      JSON.stringify({
+        type: "marks_update",
+        rollNo,
+        attendance: attendancePercent,
+        marks: allMarks, // Send full list
+      })
+    );
+
+    res.json({
+      message: "Marks updated successfully (ML triggered)",
+      record,
+      attendancePercent,
+      avgMarks,
+    });
+  } catch (err) {
+    console.error("Marks update error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// GET MARKS OF A STUDENT
+router.get("/:rollNo", async (req, res) => {
+  try {
+    const { rollNo } = req.params;
+
+    const records = await Marks.find({ rollNo }).sort({ date: 1 });
+
+    res.json({
+      marks: records,
+    });
+  } catch (err) {
+    console.error("Get marks error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend-node/routes/search.js">
+const express = require('express');
+const router = express.Router();
+const { client } = require('../config/elasticsearch');
+
+router.get('/students', async (req, res) => {
+    try {
+        const { q } = req.query;
+
+        if (!q) {
+            return res.status(400).json({ msg: 'Query parameter "q" is required' });
+        }
+
+        const result = await client.search({
+            index: 'students',
+            query: {
+                multi_match: {
+                    query: q,
+                    fields: ['name', 'email', 'rollNumber', 'department']
+                }
+            }
+        });
+
+        res.json({
+            results: result.hits.hits.map(hit => ({
+                id: hit._source.id,
+                name: hit._source.name,
+                email: hit._source.email,
+                rollNumber: hit._source.rollNumber,
+                department: hit._source.department,
+                score: hit._score
+            }))
+        });
+
+    } catch (err) {
+        console.error('Search error:', err);
+        res.status(500).json({ msg: 'Server Error', error: err.message });
+    }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend-node/routes/teacher.js">
+const express = require("express");
+const Student = require("../models/student");
+
+const router = express.Router();
+
+// GET /teacher/students?teacherId=xxxx[&section=A]
+// GET /teacher/students?teacherId=xxxx[&section=A]
+router.get("/students", async (req, res) => {
+  try {
+    const teacherId = req.query.teacherId;
+    const section = req.query.section; // optional
+
+    if (!teacherId) {
+      return res.status(400).json({ error: "teacherId required" });
+    }
+
+    let filter = {};
+
+    // If section is provided, we fetch ALL students in that section
+    // (This allows Subject Teachers to see students even if they aren't the Class Teacher)
+    if (section) {
+      filter.section = section;
+    } else {
+      // If no section provided, default to showing "My Class" (Class Teacher logic)
+      filter.classTeacher = teacherId;
+    }
+
+    const students = await Student.find(filter).select("rollNo name section");
+
+    res.json({ students });
+  } catch (err) {
+    console.error("Get teacher students error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend-node/sample-data.js">
+// Run using: node sample-data.js
+
+const mongoose = require("mongoose");
+require("dotenv").config();
+
+const Student = require("./models/student");
+const Teacher = require("./models/teacher");
+const Parent = require("./models/parent");
+
+const MONGO_URI =
+  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/college_portal";
+
+async function insertData() {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ MongoDB Connected");
+
+    await Student.deleteMany({});
+    await Teacher.deleteMany({});
+    await Parent.deleteMany({});
+    console.log("🧹 Old data cleared.");
+
+    const password = "kmit123"; // plain password everywhere
+
+    // 1) TEACHERS
+    const teachers = await Teacher.insertMany([
+      {
+        name: "Teacher A",
+        email: "teacherA@example.com",
+        password,
+        role: "mentor",
+        sections: ["A", "B"],
+      },
+      {
+        name: "Teacher B",
+        email: "teacherB@example.com",
+        password,
+        role: "mentor",
+        sections: ["C", "D"],
+      },
+    ]);
+    console.log("✅ Teachers inserted.");
+
+    const teacherA = teachers[0];
+    const teacherB = teachers[1];
+
+    // 2) STUDENTS (40) rollNo 101–140
+    // -------------------------
+// 2) STUDENTS (20 → Sections A & B)
+// -------------------------
+const students = [];
+
+// Only ONE teacher (Teacher A) teaches A & B
+const teacher = teachers[0];
+
+for (let i = 1; i <= 20; i++) {
+  const roll = (100 + i).toString(); // "101".."120"
+  const section = i <= 10 ? "A" : "B";
+
+  students.push({
+    rollNo: roll,
+    name: `Student ${i}`,
+    password,
+    section,
+    branch: "CSE",
+    semester: 3,
+    classTeacher: teacherA._id,
+    parentRollNo: roll,
+  });
+}
+
+await Student.insertMany(students);
+console.log("✅ 20 Students inserted into A & B.");
+
+
+    // 3) PARENTS (40)
+    const parents = [];
+
+    for (let i = 1; i <= 40; i++) {
+      const roll = (100 + i).toString();
+      parents.push({
+        studentRollNo: roll,
+        name: `Parent of Student ${i}`,
+        email: `parent${i}@example.com`,
+        password, // "kmit123"
+      });
+    }
+
+    await Parent.insertMany(parents);
+    console.log("✅ 40 Parents inserted.");
+
+    console.log("\n🔥 SAMPLE DATA INSERTED SUCCESSFULLY 🔥");
+    process.exit(0);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+}
+
+insertData();
+</file>
+
+<file path="backend-node/scripts/sync-students.js">
+const mongoose = require('mongoose');
+const { client } = require('../config/elasticsearch');
+const Student = require('../models/student');
+const Teacher = require('../models/teacher');
+require('dotenv').config();
+
+const connectDB = async () => {
+    try {
+        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/college-portal');
+        console.log('MongoDB Connected');
+    } catch (err) {
+        console.error('MongoDB connection error:', err);
+        process.exit(1);
+    }
+};
+
+const indexStudents = async () => {
+    try {
+        const students = await Student.find().populate('department');
+        console.log(`Found ${students.length} students to index`);
+
+        if (students.length === 0) return;
+
+        const operations = students.flatMap(doc => [
+            { index: { _index: 'students' } },
+            {
+                id: doc._id,
+                name: doc.name,
+                email: doc.email,
+                rollNumber: doc.rollNumber,
+                department: doc.department ? doc.department.name : '',
+                batch: doc.batch
+            }
+        ]);
+
+        const bulkResponse = await client.bulk({ refresh: true, operations });
+
+        if (bulkResponse.errors) {
+            const erroredDocuments = [];
+            bulkResponse.items.forEach((action, i) => {
+                const operation = Object.keys(action)[0];
+                if (action[operation].error) {
+                    erroredDocuments.push({
+                        status: action[operation].status,
+                        error: action[operation].error,
+                        operation: operations[i * 2],
+                        document: operations[i * 2 + 1]
+                    });
+                }
+            });
+            console.log('Errors during bulk index:', erroredDocuments);
+        } else {
+            console.log('Successfully indexed students');
+        }
+
+    } catch (err) {
+        console.error('Error indexing students:', err);
+    }
+};
+
+const run = async () => {
+    await connectDB();
+    await indexStudents();
+    await mongoose.disconnect();
+};
+
+run();
+</file>
+
+<file path="backend-node/seed.js">
+// seed.js
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+
+const Student = require("./models/student");
+const Teacher = require("./models/teacher");
+const Parent = require("./models/parent");
+const Marks = require("./models/marks");
+const Attendance = require("./models/attendance");
+
+const MONGODB_URI = "mongodb://127.0.0.1:27017/college_portal"; // change if needed
+
+async function connectDB() {
+  await mongoose.connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+  console.log("✅ Connected to MongoDB");
+}
+
+async function seed() {
+  try {
+    await connectDB();
+
+    console.log("🧹 Clearing old data...");
+    await Promise.all([
+      Student.deleteMany({}),
+      Teacher.deleteMany({}),
+      Parent.deleteMany({}),
+      Marks.deleteMany({}),
+      Teacher.deleteMany({}),
+      Parent.deleteMany({}),
+      Marks.deleteMany({}),
+      // Drop Attendance collection to remove old indexes (like unique-per-day) that might block multiple periods
+      mongoose.connection.collection("attendances").drop().catch(err => console.log("Attendance collection did not exist, skipping drop")),
+    ]);
+
+    // 2️⃣ Create teachers
+    const passwordHash = await bcrypt.hash("password123", 10);
+
+    // Subject Teachers (Requested by User)
+    const physicsTeacher = await Teacher.create({
+      name: "Physics Teacher",
+      email: "physics@college.com",
+      password: "physics.kmit",
+      sections: [], // handled by frontend mapping
+    });
+
+    const mathTeacher = await Teacher.create({
+      name: "Math Teacher",
+      email: "math@college.com",
+      password: "math.kmit",
+      sections: [],
+    });
+
+    const englishTeacher = await Teacher.create({
+      name: "English Teacher",
+      email: "english@college.com",
+      password: "english.kmit",
+      sections: [],
+    });
+
+    const chemistryTeacher = await Teacher.create({
+      name: "Chemistry Teacher",
+      email: "chemistry@college.com",
+      password: "chemistry.kmit",
+      sections: [],
+    });
+
+    console.log("✅ Teachers created: Physics, Math, English, Chemistry");
+
+    // 2️⃣ Create 40 students in 4 sections
+    const sections = ["A", "B", "C", "D"];
+    const studentsToInsert = [];
+    const parentsToInsert = [];
+
+    for (let i = 1; i <= 40; i++) {
+      const rollNo = String(100 + i); // 101..140
+
+      const secIndex = Math.floor((i - 1) / 10); // 0..3
+      const section = sections[secIndex];
+
+      // Assign Class Teacher roughly by section logic
+      let teacherId = physicsTeacher._id;
+      if (section === "B") teacherId = mathTeacher._id;
+      if (section === "A") teacherId = englishTeacher._id;
+
+      // For now, let's just default all to PhysicsTeacher to be safe.
+      teacherId = physicsTeacher._id;
+
+      studentsToInsert.push({
+        rollNo,
+        name: `Student ${i}`,
+        section,
+        branch: "CSE",
+        semester: 3,
+        classTeacherId: teacherId,
+        password: "kmit123", // Password required by schema
+      });
+
+      parentsToInsert.push({
+        studentRollNo: rollNo,
+        name: `Parent of Student ${i}`,
+        email: `parent${i}@example.com`,
+        password: "kmit123", // Matches user requirement & simple auth logic
+      });
+    }
+
+    const students = await Student.insertMany(studentsToInsert);
+    const parents = await Parent.insertMany(parentsToInsert);
+
+    console.log(`✅ Inserted ${students.length} students`);
+    console.log(`✅ Inserted ${parents.length} parents`);
+
+    // 3️⃣ Insert marks for each student
+    const examTypes = ["MID-1", "MID-2", "UNIT-1", "UNIT-2", "FINAL"];
+    const subjects = ["Physics", "Maths", "Chemistry"];
+
+    const marksDocs = [];
+
+    for (const student of students) {
+      for (const subject of subjects) {
+        for (const examType of examTypes) {
+          // Just random-ish marks for demo
+          const randomMarks =
+            examType === "FINAL"
+              ? 50 + Math.floor(Math.random() * 51) // 50-100
+              : 10 + Math.floor(Math.random() * 21); // 10-30
+
+          const maxMarks = examType === "FINAL" ? 100 : 30;
+
+          marksDocs.push({
+            rollNo: student.rollNo,
+            subject,
+            examType,
+            marks: randomMarks,
+            maxMarks,
+            academicYear: "2025-26",
+            semester: 3,
+          });
+        }
+      }
+    }
+
+    await Marks.insertMany(marksDocs);
+    console.log(`✅ Inserted ${marksDocs.length} marks records`);
+
+    // 4️⃣ Insert Dummy Attendance (with Subjects)
+    const attendanceDocs = [];
+    const dates = ["2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05"];
+
+    // Map period to subject for seeding
+    const periodMap = {
+      "1": "Physics",
+      "2": "Maths",
+      "3": "Chemistry"
+    };
+
+    for (const student of students) {
+      for (const date of dates) {
+        for (const [period, subject] of Object.entries(periodMap)) {
+          attendanceDocs.push({
+            rollNo: student.rollNo,
+            date,
+            period,
+            subject, // NEW FIELD
+            status: Math.random() > 0.1 ? "Present" : "Absent" // 90% attendance
+          });
+        }
+      }
+    }
+
+    // We already dropped the collection above, so it's safe to insert
+    const Attendance = require("./models/attendance");
+    await Attendance.insertMany(attendanceDocs);
+    console.log(`✅ Inserted ${attendanceDocs.length} attendance records with subjects`);
+
+    console.log("🎉 Seeding completed successfully!");
+    process.exit(0);
+  } catch (err) {
+    console.error("❌ Error while seeding:", err);
+    process.exit(1);
+  }
+}
+
+seed();
+</file>
+
+<file path="backend-node/utils/db.js">
+const mongoose = require("mongoose");
+
+async function connectDB() {
+  const uri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/college_portal";
+
+  try {
+    await mongoose.connect(uri);
+    console.log("✅ MongoDB connected:", uri);
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err.message);
+    process.exit(1);
+  }
+}
+
+module.exports = connectDB;
+</file>
+
+<file path="backend-node/utils/rabbitmq.js">
+const amqp = require("amqplib");
+
+let channel = null;
+const QUEUE_NAME = "risk_updates";
+
+async function connectRabbitMQ() {
+  try {
+    const url = process.env.RABBITMQ_URL || "amqp://localhost";
+    const connection = await amqp.connect(url);
+    channel = await connection.createChannel();
+    await channel.assertQueue(QUEUE_NAME, { durable: true });
+    console.log("✅ RabbitMQ connected, queue:", QUEUE_NAME);
+  } catch (err) {
+    console.error("❌ RabbitMQ connection error:", err.message);
+    // Do not exit process, just run without RabbitMQ
+    channel = null;
+  }
+}
+
+function sendToQueue(message) {
+  if (!channel) {
+    console.error("❌ RabbitMQ channel not initialized");
+    return;
+  }
+
+  channel.sendToQueue(QUEUE_NAME, Buffer.from(message), {
+    persistent: true,
+  });
+}
+
+module.exports = {
+  connectRabbitMQ,
+  sendToQueue,
+};
+</file>
+
+<file path="backend-node/utils/redis.js">
+const { createClient } = require("redis");
+
+const client = createClient({
+  url: process.env.REDIS_URL || "redis://127.0.0.1:6379",
+});
+
+async function connectRedis() {
+  client.on("error", (err) => {
+    console.error("❌ Redis Client Error", err);
+  });
+
+  await client.connect();
+  console.log("✅ Redis connected");
+}
+
+module.exports = {
+  client,
+  connectRedis,
+};
+</file>
+
+<file path="debug_redis.py">
+import redis
+import json
+
+r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+roll_no = "102" # Based on screenshot
+key = f"risk:{roll_no}"
+
+data = r.get(key)
+print(f"--- Data for {key} ---")
+if data:
+    print(data)
+    parsed = json.loads(data)
+    print("\nParsed Marks Risks:")
+    for risk in parsed.get("marks_risks", []):
+        print(f"- {risk}")
+else:
+    print("No data found in Redis for this key.")
+
+# Also check 101 just in case
+roll_no_101 = "101"
+key_101 = f"risk:{roll_no_101}"
+data_101 = r.get(key_101)
+if data_101:
+    print(f"\n--- Data for {key_101} ---")
+    print(data_101)
+</file>
+
+<file path="docker-compose.yml">
+version: '3.9'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_server
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # Elasticsearch Service
+  elasticsearch:
+    image: elasticsearch:8.11.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
+  # Kibana Service
+  kibana:
+    image: kibana:8.11.1
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+  #   build: ./ml-flask
+  #   container_name: flask_ml
+  #   restart: always
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - rabbitmq
+
+  # celery:
+  #   build: ./ml-flask
+  #   container_name: celery_worker
+  #   restart: always
+  #   command: celery -A worker.celery worker --loglevel=INFO
+  #   depends_on:
+  #     - rabbitmq
+
+volumes:
+  elasticsearch_data:
+</file>
+
+<file path="frontend/attendance_page.html">
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mark Attendance</title>
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="teacher.css" />
+</head>
+
+<body>
+  <nav class="navbar">
+    <h2 id="teacherName">👨‍🏫 Teacher Portal</h2>
+    <ul>
+      <li><a href="teacher_home.html">🏠 Home</a></li>
+      <li><a href="attendance_page.html" class="active">📋 Attendance</a></li>
+      <li><a href="marks_page.html">⭐ Marks</a></li>
+      <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+    </ul>
+  </nav>
+
+  <div class="content-container">
+    <div class="content-header">
+      <h1>📋 Mark Attendance</h1>
+    </div>
+
+    <!-- Bulk Controls Card -->
+    <div class="card">
+      <div class="card-header">
+        <h3>Attendance Controls</h3>
+      </div>
+      <div class="card-body">
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-lg); margin-bottom: var(--spacing-lg);">
+          <div class="form-group">
+            <label for="attendanceDate">Select Date</label>
+            <input type="date" id="attendanceDate" />
+          </div>
+
+          <div class="form-group">
+            <label for="attendancePeriod">Select Period</label>
+            <select id="attendancePeriod" style="padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+              <option value="1">Period 1</option>
+              <option value="2">Period 2</option>
+              <option value="3">Period 3</option>
+              <option value="4">Period 4</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <label
+              style="display: flex; align-items: center; gap: var(--spacing-md); cursor: pointer; margin-bottom: 0;">
+              <input type="checkbox" id="selectAllStudents" />
+              Select All Students
+            </label>
+          </div>
+        </div>
+
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--spacing-md);">
+          <button id="markPresentBtn" class="btn btn-success btn-lg">Mark Present</button>
+          <button id="markAbsentBtn" class="btn btn-warning btn-lg">Mark Absent</button>
+          <button id="saveSelectedBtn" class="btn btn-primary btn-lg">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Students List -->
+    <div style="margin-top: var(--spacing-2xl);">
+      <div id="studentsList" class="students-list">
+        <!-- Filled by attendance.js -->
+      </div>
+    </div>
+  </div>
+
+  <script src="attendance.js"></script>
+</body>
+
+</html>
+</file>
+
+<file path="frontend/attendance.js">
+const API = "http://localhost:5000";
+
+// ---------- HELPER: TODAY IN yyyy-mm-dd ----------
+function getToday() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// ---------- AUTH CHECK ----------
+const userData = JSON.parse(localStorage.getItem("userData"));
+if (!userData || !userData.teacher) {
+  alert("Please login as teacher first!");
+  window.location.href = "index.html";
+}
+
+const teacher = userData.teacher;
+const selectedSection = localStorage.getItem("selectedSection");
+
+if (!selectedSection) {
+  alert("Please select a section on the Teacher Home page first.");
+  window.location.href = "teacher_home.html";
+}
+
+document.getElementById("teacherName").innerText =
+  `Teacher: ${teacher.name} (Section ${selectedSection})`;
+
+// ---------- GLOBAL DATE (top calendar) ----------
+const globalDateInput = document.getElementById("attendanceDate");
+const todayStr = getToday();
+if (globalDateInput) {
+  globalDateInput.value = todayStr;
+}
+
+// when global date changes, update all per-student dates
+if (globalDateInput) {
+  globalDateInput.addEventListener("change", () => {
+    const newDate = globalDateInput.value;
+    document
+      .querySelectorAll(".attendance-date")
+      .forEach((input) => (input.value = newDate));
+  });
+}
+
+// ---------- LOAD STUDENTS OF THAT SECTION ----------
+async function loadStudentsForAttendance() {
+  try {
+    const res = await fetch(
+      `${API}/teacher/students?teacherId=${teacher._id}&section=${selectedSection}`
+    );
+    const data = await res.json();
+
+    const list = document.getElementById("studentsList");
+    list.innerHTML = "";
+
+    (data.students || []).forEach((stu) => {
+      list.innerHTML += `
+        <div class="student-card">
+          <div class="student-header">
+            <input 
+              type="checkbox" 
+              class="student-select" 
+              data-rollno="${stu.rollNo}"
+            />
+            <span>
+              <strong>${stu.name}</strong> (${stu.rollNo}) - Section ${stu.section}
+            </span>
+          </div>
+          <div class="controls">
+            <input 
+              type="date" 
+              id="adate-${stu.rollNo}" 
+              class="attendance-date"
+              value="${todayStr}"
+            />
+            <select id="status-${stu.rollNo}">
+              <option value="Present">Present</option>
+              <option value="Absent">Absent</option>
+            </select>
+            <button onclick="saveAttendance('${stu.rollNo}')">Save</button>
+          </div>
+        </div>
+      `;
+    });
+  } catch (err) {
+    console.error("Error loading students for attendance:", err);
+    alert("Failed to load students");
+  }
+}
+
+// ---------- SAVE ATTENDANCE FOR ONE STUDENT ----------
+async function saveAttendance(rollNo, skipCheck = false) {
+  const date = document.getElementById(`adate-${rollNo}`).value;
+  const status = document.getElementById(`status-${rollNo}`).value;
+  const period = document.getElementById("attendancePeriod").value;
+
+  if (!date || !period) {
+    alert("Please select both Date and Period");
+    return;
+  }
+
+  // Conflict Check (unless skipped)
+  if (!skipCheck) {
+    try {
+      const checkRes = await fetch(`${API}/attendance/check-bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rollNos: [rollNo], date, period }),
+      });
+      const checkData = await checkRes.json();
+
+      if (checkData.exists) {
+        const confirmOverwrite = confirm(
+          `Attendance for ${rollNo} in Period ${period} already exists. Overwrite?`
+        );
+        if (!confirmOverwrite) return;
+      }
+    } catch (err) {
+      console.error("Conflict check error:", err);
+    }
+  }
+
+  // Infer Subject from Teacher Name (e.g., "Physics Teacher" -> "Physics")
+  // Fallback to "General" if not found
+  const subject = teacher.name.split(" ")[0] || "General";
+
+  try {
+    const res = await fetch(`${API}/attendance/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rollNo,
+        date,
+        status,
+        period,
+        subject
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error("Attendance update error:", data);
+      alert("Failed to save attendance: " + (data.message || "Server error"));
+      return;
+    }
+
+    console.log("Saved attendance:", data);
+  } catch (err) {
+    console.error("Attendance update error:", err);
+    alert("Failed to save attendance (network error)");
+  }
+}
+
+// ---------- BULK HELPERS ----------
+function getSelectedRollNos() {
+  const checkboxes = document.querySelectorAll(".student-select");
+  const selected = [];
+  checkboxes.forEach((cb) => {
+    if (cb.checked) {
+      selected.push(cb.getAttribute("data-rollno"));
+    }
+  });
+  return selected;
+}
+
+// Mark selected students' status (Present / Absent) in UI
+function setStatusForSelected(status) {
+  const selected = getSelectedRollNos();
+  selected.forEach((rollNo) => {
+    const sel = document.getElementById(`status-${rollNo}`);
+    if (sel) sel.value = status;
+  });
+}
+
+// Save attendance for all selected students (using their current status + date)
+async function saveSelectedAttendance() {
+  const selected = getSelectedRollNos();
+
+  if (selected.length === 0) {
+    alert("No students selected");
+    return;
+  }
+
+  // ensure they all have a date
+  const period = document.getElementById("attendancePeriod").value;
+  if (!period) {
+    alert("Please select a Period first.");
+    return;
+  }
+
+  for (const rollNo of selected) {
+    const dateInput = document.getElementById(`adate-${rollNo}`);
+    if (!dateInput || !dateInput.value) {
+      alert(`Please select date for roll no ${rollNo}`);
+      return;
+    }
+  }
+
+  // Bulk Conflict Check
+  try {
+    const period = document.getElementById("attendancePeriod").value; // Re-get just in case
+    // (Note: date is per-student but we usually use global date. For bulk check, we assume same date or check all?)
+    // The previous logic verified all students have dates.
+    // Let's assume most use the top global date, but let's grab the first one's date or just pass one date if they are all same.
+    // To be safe, let's just check against the first valid date found, or the global date.
+    // The backend `check-bulk` takes ONE date.
+    // The UI implies a "Select Date" at the top which updates all.
+    const commonDate = document.getElementById("attendanceDate").value;
+
+    const checkRes = await fetch(`${API}/attendance/check-bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rollNos: selected,
+        date: commonDate,
+        period
+      })
+    });
+    const checkData = await checkRes.json();
+
+    if (checkData.exists) {
+      const confirmOverwrite = confirm(
+        `Attendance already exists for ${checkData.existingRollNos.length} student(s) in Period ${period}. Overwrite all?`
+      );
+      if (!confirmOverwrite) return;
+    }
+  } catch (err) {
+    console.error("Bulk check error:", err);
+  }
+
+  try {
+    for (const rollNo of selected) {
+      await saveAttendance(rollNo, true); // skipCheck = true
+    }
+    alert("Attendance saved for selected students");
+  } catch (err) {
+    console.error("Bulk attendance error:", err);
+    alert("Error while saving some attendances");
+  }
+}
+
+// ---------- SELECT ALL HANDLER ----------
+const selectAllCheckbox = document.getElementById("selectAllStudents");
+if (selectAllCheckbox) {
+  selectAllCheckbox.addEventListener("change", () => {
+    const checked = selectAllCheckbox.checked;
+    document
+      .querySelectorAll(".student-select")
+      .forEach((cb) => (cb.checked = checked));
+  });
+}
+
+// ---------- TOP BUTTON HANDLERS ----------
+const markPresentBtn = document.getElementById("markPresentBtn");
+if (markPresentBtn) {
+  markPresentBtn.addEventListener("click", () => {
+    setStatusForSelected("Present");
+  });
+}
+
+const markAbsentBtn = document.getElementById("markAbsentBtn");
+if (markAbsentBtn) {
+  markAbsentBtn.addEventListener("click", () => {
+    setStatusForSelected("Absent");
+  });
+}
+
+const saveSelectedBtn = document.getElementById("saveSelectedBtn");
+if (saveSelectedBtn) {
+  saveSelectedBtn.addEventListener("click", () => {
+    saveSelectedAttendance();
+  });
+}
+
+// ---------- LOGOUT ----------
+document.getElementById("logoutBtn").addEventListener("click", (e) => {
+  e.preventDefault();
+  localStorage.removeItem("userData");
+  localStorage.removeItem("selectedSection");
+  window.location.href = "index.html";
+});
+
+// ---------- INITIAL LOAD ----------
+loadStudentsForAttendance();
+</file>
+
+<file path="frontend/design-system.css">
+/* ============================================
+   DESIGN SYSTEM - Global Styles
+   Modern, Professional, Dashboard-like Design
+   Similar to: Notion, Linear, Stripe
+   ============================================ */
+
+/* ============================================
+   CSS VARIABLES - Color Palette & Spacing
+   ============================================ */
+:root {
+  /* Colors - Vibrant Premium Palette */
+  --color-white: #ffffff;
+  --color-bg-primary: #f8fafc;
+  /* Slate 50 */
+  --color-bg-secondary: #f1f5f9;
+  /* Slate 100 */
+  --color-bg-tertiary: #e2e8f0;
+  /* Slate 200 */
+
+  --color-text-primary: #1e293b;
+  /* Slate 800 */
+  --color-text-secondary: #475569;
+  /* Slate 600 */
+  --color-text-tertiary: #94a3b8;
+  /* Slate 400 */
+  --color-text-inverse: #ffffff;
+
+  --color-border-light: #e2e8f0;
+  --color-border-normal: #cbd5e1;
+  --color-border-dark: #94a3b8;
+
+  /* Premium Verified Brand Colors (Classy Violet) */
+  --color-primary: #7c3aed;
+  /* Violet 600 */
+  --color-primary-hover: #6d28d9;
+  /* Violet 700 */
+  --color-primary-active: #5b21b6;
+  /* Violet 800 */
+  --color-primary-light: #ddd6fe;
+  /* Violet 100 */
+  --color-primary-lighter: #f5f3ff;
+  /* Violet 50 */
+
+  /* Smooth, classy gradients */
+  --gradient-primary: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #6366f1 100%);
+  /* Soft Violet to Indigo */
+  --gradient-primary-alt: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  /* Deep Violet to Indigo */
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+
+  /* Semantic Colors */
+  --color-success: #10b981;
+  /* Emerald 500 */
+  --color-success-light: #ecfdf5;
+  --color-warning: #f59e0b;
+  /* Amber 500 */
+  --color-warning-light: #fffbeb;
+  --color-error: #ef4444;
+  /* Red 500 */
+  --color-error-light: #fef2f2;
+  --color-info: #0ea5e9;
+  /* Sky 500 */
+  --color-info-light: #f0f9ff;
+
+  /* Spacing Scale (4px base) */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  --spacing-3xl: 48px;
+  --spacing-4xl: 64px;
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows - Smooth & Deep */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+  /* Typography */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-index */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-tooltip: 1070;
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-primary);
+}
+
+h1 {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-xl);
+}
+
+h2 {
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--spacing-lg);
+}
+
+h3 {
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--spacing-md);
+}
+
+h4 {
+  font-size: var(--font-size-xl);
+  margin-bottom: var(--spacing-md);
+}
+
+h5 {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--spacing-sm);
+}
+
+h6 {
+  font-size: var(--font-size-base);
+  margin-bottom: var(--spacing-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+}
+
+p {
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-secondary);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: none;
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+button,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+button:disabled,
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary Button */
+.btn-primary,
+button[type="submit"],
+button.primary {
+  background: var(--gradient-primary-alt);
+  color: var(--color-text-inverse);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before,
+button[type="submit"]::before,
+button.primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: left var(--transition-fast);
+}
+
+.btn-primary:hover:not(:disabled)::before,
+button[type="submit"]:hover:not(:disabled)::before,
+button.primary:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.btn-primary:hover:not(:disabled),
+button[type="submit"]:hover:not(:disabled),
+button.primary:hover:not(:disabled) {
+  background: var(--gradient-primary);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6);
+  transform: translateY(-3px);
+}
+
+.btn-primary:active:not(:disabled),
+button[type="submit"]:active:not(:disabled),
+button.primary:active:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-primary:focus,
+button[type="submit"]:focus,
+button.primary:focus {
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6), 0 0 0 4px var(--color-primary-light);
+}
+
+/* Secondary Button */
+.btn-secondary,
+button.secondary {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-normal);
+}
+
+.btn-secondary:hover:not(:disabled),
+button.secondary:hover:not(:disabled) {
+  background-color: var(--color-bg-tertiary);
+  border-color: var(--color-border-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:active:not(:disabled),
+button.secondary:active:not(:disabled) {
+  background-color: var(--color-border-light);
+}
+
+.btn-secondary:focus,
+button.secondary:focus {
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+/* Tertiary Button (Ghost) */
+.btn-tertiary,
+button.tertiary {
+  background-color: transparent;
+  color: var(--color-primary);
+  border: none;
+}
+
+.btn-tertiary:hover:not(:disabled),
+button.tertiary:hover:not(:disabled) {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary-hover);
+}
+
+.btn-tertiary:active:not(:disabled),
+button.tertiary:active:not(:disabled) {
+  background-color: var(--color-primary-lighter);
+}
+
+/* Danger Button */
+.btn-danger,
+button.danger {
+  background-color: var(--color-error);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-danger:hover:not(:disabled),
+button.danger:hover:not(:disabled) {
+  background-color: #b91c1c;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Success Button */
+.btn-success,
+button.success {
+  background-color: var(--color-success);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-success:hover:not(:disabled),
+button.success:hover:not(:disabled) {
+  background-color: #047857;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Size Variants */
+.btn-sm {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+}
+
+.btn-lg {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  font-size: var(--font-size-lg);
+  border-radius: var(--radius-lg);
+}
+
+.btn-full {
+  width: 100%;
+}
+
+/* ============================================
+   FORM ELEMENTS
+   ============================================ */
+input,
+textarea,
+select {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 2px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  background-color: var(--color-white);
+  color: var(--color-text-primary);
+  transition: all var(--transition-normal);
+  outline: none;
+  position: relative;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-tertiary);
+  transition: color var(--transition-fast);
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--color-border-normal);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15), 0 4px 12px rgba(102, 126, 234, 0.2);
+  background: linear-gradient(135deg, #ffffff 0%, rgba(102, 126, 234, 0.02) 100%);
+}
+
+input:focus::placeholder,
+textarea:focus::placeholder {
+  color: var(--color-text-secondary);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background-color: rgba(0, 0, 0, 0.02);
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+  border-color: var(--color-border-light);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+label {
+  display: block;
+  margin-bottom: var(--spacing-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.form-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+.form-error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.form-hint {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-sm);
+}
+
+/* ============================================
+   CARDS
+   ============================================ */
+.card {
+  background-color: var(--color-white);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient-primary-alt);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.card:hover {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  border-color: var(--color-border-normal);
+  transform: translateY(-4px);
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+.card-header {
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 2px solid var(--color-border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-header h2,
+.card-header h3 {
+  margin-bottom: 0;
+  background: var(--gradient-primary-alt);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.card-body {
+  margin-bottom: var(--spacing-lg);
+}
+
+.card-footer {
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+}
+
+.card-compact {
+  padding: var(--spacing-md);
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+}
+
+.card-elevated {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.card-flat {
+  box-shadow: none;
+  border: 1px solid var(--color-border-light);
+}
+
+.card-accent {
+  border-left: 4px solid;
+  border-image: var(--gradient-primary-alt) 1;
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+.table-container {
+  overflow-x: auto;
+  margin: var(--spacing-md) 0;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+thead {
+  background: linear-gradient(135deg, #f0f4f8 0%, #e8ecf1 100%);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: var(--font-size-xs);
+}
+
+th {
+  padding: var(--spacing-md) var(--spacing-lg);
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  border-bottom: 2px solid var(--color-border-normal);
+  transition: background-color var(--transition-fast);
+}
+
+th:hover {
+  background: linear-gradient(135deg, #e8ecf1 0%, #dfe5eb 100%);
+}
+
+td {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border-light);
+  color: var(--color-text-secondary);
+}
+
+tbody tr {
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+tbody tr:hover {
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.1);
+}
+
+tbody tr:hover td {
+  color: var(--color-text-primary);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-striped tbody tr:nth-child(odd) {
+  background-color: rgba(245, 247, 250, 0.5);
+}
+
+.table-striped tbody tr:nth-child(odd):hover {
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+}
+
+.table-striped tbody tr:nth-child(even) {
+  background-color: var(--color-white);
+}
+
+/* ============================================
+   NAVBAR
+   ============================================ */
+.navbar {
+  background: linear-gradient(90deg, #ffffff 0%, #fafbfc 100%);
+  border-bottom: 2px solid var(--color-border-light);
+  padding: var(--spacing-md) var(--spacing-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+.navbar-brand {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  background: var(--gradient-primary-alt);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: transform var(--transition-fast);
+}
+
+.navbar-brand:hover {
+  transform: scale(1.05);
+}
+
+.navbar-menu {
+  list-style: none;
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: center;
+}
+
+.navbar-menu a,
+.navbar-menu button {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-normal);
+  position: relative;
+}
+
+.navbar-menu a::after,
+.navbar-menu button::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gradient-primary-alt);
+  border-radius: 1px;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--transition-normal);
+}
+
+.navbar-menu a:hover,
+.navbar-menu button:hover {
+  color: var(--color-primary);
+  background-color: rgba(102, 126, 234, 0.1);
+}
+
+.navbar-menu a:hover::after,
+.navbar-menu button:hover::after {
+  transform: scaleX(1);
+}
+
+.navbar-menu a.active,
+.navbar-menu button.active {
+  color: var(--color-primary);
+  background-color: rgba(102, 126, 234, 0.15);
+  font-weight: var(--font-weight-semibold);
+}
+
+.navbar-menu a.active::after,
+.navbar-menu button.active::after {
+  transform: scaleX(1);
+}
+
+/* ============================================
+   ALERTS & BADGES
+   ============================================ */
+.alert {
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  border-left: 4px solid;
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-start;
+  animation: slideInUp var(--transition-normal) ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.alert::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+}
+
+.alert-success {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+  border-color: var(--color-success);
+  color: var(--color-text-primary);
+}
+
+.alert-warning {
+  background: linear-gradient(135deg, rgba(202, 138, 4, 0.1) 0%, rgba(202, 138, 4, 0.05) 100%);
+  border-color: var(--color-warning);
+  color: var(--color-text-primary);
+}
+
+.alert-error {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
+  border-color: var(--color-error);
+  color: var(--color-text-primary);
+}
+
+.alert-info {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-color: var(--color-info);
+  color: var(--color-text-primary);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.badge::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width var(--transition-normal), height var(--transition-normal);
+}
+
+.badge:hover::before {
+  width: 100%;
+  height: 100%;
+}
+
+.badge-primary {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.1) 100%);
+  color: var(--color-primary);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.badge-success {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
+  color: var(--color-success);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge-warning {
+  background: linear-gradient(135deg, rgba(202, 138, 4, 0.2) 0%, rgba(202, 138, 4, 0.1) 100%);
+  color: var(--color-warning);
+  border: 1px solid rgba(202, 138, 4, 0.3);
+}
+
+.badge-error {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.1) 100%);
+  color: var(--color-error);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+.hidden {
+  display: none !important;
+}
+
+.visible {
+  display: block !important;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.text-muted {
+  color: var(--color-text-tertiary);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-error {
+  color: var(--color-error);
+}
+
+.text-sm {
+  font-size: var(--font-size-sm);
+}
+
+.text-lg {
+  font-size: var(--font-size-lg);
+}
+
+.text-bold {
+  font-weight: var(--font-weight-bold);
+}
+
+.text-semibold {
+  font-weight: var(--font-weight-semibold);
+}
+
+.mb-xs {
+  margin-bottom: var(--spacing-xs);
+}
+
+.mb-sm {
+  margin-bottom: var(--spacing-sm);
+}
+
+.mb-md {
+  margin-bottom: var(--spacing-md);
+}
+
+.mb-lg {
+  margin-bottom: var(--spacing-lg);
+}
+
+.mb-xl {
+  margin-bottom: var(--spacing-xl);
+}
+
+.mb-2xl {
+  margin-bottom: var(--spacing-2xl);
+}
+
+.mt-xs {
+  margin-top: var(--spacing-xs);
+}
+
+.mt-sm {
+  margin-top: var(--spacing-sm);
+}
+
+.mt-md {
+  margin-top: var(--spacing-md);
+}
+
+.mt-lg {
+  margin-top: var(--spacing-lg);
+}
+
+.mt-xl {
+  margin-top: var(--spacing-xl);
+}
+
+.mt-2xl {
+  margin-top: var(--spacing-2xl);
+}
+
+.p-xs {
+  padding: var(--spacing-xs);
+}
+
+.p-sm {
+  padding: var(--spacing-sm);
+}
+
+.p-md {
+  padding: var(--spacing-md);
+}
+
+.p-lg {
+  padding: var(--spacing-lg);
+}
+
+.p-xl {
+  padding: var(--spacing-xl);
+}
+
+.p-2xl {
+  padding: var(--spacing-2xl);
+}
+
+.px-lg {
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
+}
+
+.py-lg {
+  padding-top: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+}
+
+.gap-sm {
+  gap: var(--spacing-sm);
+}
+
+.gap-md {
+  gap: var(--spacing-md);
+}
+
+.gap-lg {
+  gap: var(--spacing-lg);
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.grid {
+  display: grid;
+}
+
+.grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+}
+
+.grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-lg);
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 768px) {
+
+  .grid-cols-2,
+  .grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .navbar {
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    align-items: flex-start;
+  }
+
+  .navbar-menu {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  button,
+  .btn {
+    width: 100%;
+  }
+
+  .table-responsive {
+    overflow-x: auto;
+  }
+
+  h1 {
+    font-size: var(--font-size-3xl);
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: var(--spacing-md);
+  }
+
+  .card {
+    padding: var(--spacing-md);
+  }
+
+  .navbar {
+    padding: var(--spacing-md);
+  }
+
+  h1 {
+    font-size: var(--font-size-2xl);
+  }
+
+  h2 {
+    font-size: var(--font-size-xl);
+  }
+
+  table {
+    font-size: var(--font-size-xs);
+  }
+
+  th,
+  td {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(102, 126, 234, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+  }
+}
+</file>
+
+<file path="frontend/index.html">
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Portal - Login</title>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="split-layout">
+        <!-- Left Side: Hero / Brand -->
+        <div class="hero-section">
+            <div class="hero-content">
+                <div class="brand-badge">Welcome to</div>
+                <h1>SMART CAMPUS PORTAL</h1>
+                <p>Empowering the next generation of students with a seamless digital college experience.</p>
+
+                <div class="hero-features">
+                    <div class="feature-item">
+                        <span class="icon">📊</span>
+                        <span>Real-time Analytics</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="icon">🎓</span>
+                        <span>Student Success</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="icon">🔒</span>
+                        <span>Secure Access</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual"></div>
+        </div>
+
+        <!-- Right Side: Login Form -->
+        <div class="login-section">
+            <div class="login-container">
+                <div class="login-header">
+                    <h2>Sign In</h2>
+                    <p>Access your dashboard</p>
+                </div>
+
+                <div class="login-box">
+                    <div class="form-field">
+                        <label for="role">I am a...</label>
+                        <div class="select-wrapper">
+                            <select id="role">
+                                <option value="student">Student</option>
+                                <option value="parent">Parent</option>
+                                <option value="teacher">Teacher</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Generic Login Fields -->
+                    <div id="login-fields" class="field-group">
+                        <div class="form-field">
+                            <label for="username">User ID / Name</label>
+                            <input id="username" type="text" placeholder="Enter your ID or Name">
+                        </div>
+                        <div class="form-field">
+                            <label for="password">Password</label>
+                            <input id="password" type="password" placeholder="•••••••••">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <div class="remember-me">
+                            <input type="checkbox" id="remember">
+                            <label for="remember">Remember me</label>
+                        </div>
+                        <a href="#" class="forgot-password">Forgot password?</a>
+                    </div>
+
+                    <button id="loginBtn" type="submit">
+                        <span>Sign In</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+
+                    <div id="msg"></div>
+                </div>
+
+                <footer class="login-footer">
+                    <p>&copy; 2024 KMIT Netra. All rights reserved.</p>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
+</file>
+
+<file path="frontend/marks_page.html">
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Give Marks</title>
+  <link rel="stylesheet" href="design-system.css">
+  <link rel="stylesheet" href="teacher.css">
+</head>
+
+<body>
+
+  <nav class="navbar">
+    <h2 id="teacherName">👨‍🏫 Teacher Portal</h2>
+    <ul>
+      <li><a href="teacher_home.html">🏠 Home</a></li>
+      <li><a href="attendance_page.html">📋 Attendance</a></li>
+      <li><a href="marks_page.html" class="active">⭐ Marks</a></li>
+      <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+    </ul>
+  </nav>
+
+  <div class="content-container">
+    <div class="content-header">
+      <h1>⭐ Give Marks</h1>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-panel basic-box"
+      style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <div class="form-group">
+        <label>Select Exam Type:</label>
+        <select id="globalExamType">
+          <option value="">-- Select --</option>
+          <option value="MID-1">MID-1</option>
+          <option value="MID-2">MID-2</option>
+          <option value="UNIT-1">UNIT-1</option>
+          <option value="UNIT-2">UNIT-2</option>
+          <option value="SEMESTER">SEMESTER (FINAL)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Select Subject:</label>
+        <select id="globalSubject">
+          <option value="">-- Select --</option>
+          <option value="Physics">Physics</option>
+          <option value="Maths">Maths</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="English">English</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Select Date:</label>
+        <input type="date" id="globalDate"
+          style="padding: 10px; border: 1px solid var(--color-border-normal); border-radius: var(--radius-md);">
+      </div>
+
+      <button id="loadStudentsBtn" class="btn-primary" style="margin-left: auto;">Load Students</button>
+      <button id="saveAllBtn" class="btn-primary" style="background: var(--color-success);">Save All Marks</button>
+    </div>
+
+    <div id="studentsList"></div>
+  </div>
+
+  <script src="marks.js"></script>
+</body>
+
+</html>
+</file>
+
+<file path="frontend/marks.js">
+const API = "http://localhost:5000";
+
+// ---------- AUTH CHECK ----------
+const userData = JSON.parse(localStorage.getItem("userData"));
+if (!userData || !userData.teacher) {
+  alert("Please login as teacher first!");
+  window.location.href = "index.html";
+}
+
+const teacher = userData.teacher;
+const selectedSection = localStorage.getItem("selectedSection");
+
+if (!selectedSection) {
+  alert("Please select a section on the Teacher Home page first.");
+  window.location.href = "teacher_home.html";
+}
+
+`Teacher: ${teacher.name} (Section ${selectedSection})`;
+
+// Mapping Configuration for Subjects
+const TEACHER_SUBJECTS = {
+  "Physics Teacher": "Physics",
+  "Math Teacher": "Maths",
+  "English Teacher": "English",
+  "Chemistry Teacher": "Chemistry"
+};
+
+// Auto-select subject if applicable
+const subjectSelect = document.getElementById("globalSubject");
+if (TEACHER_SUBJECTS[teacher.name]) {
+  const subject = TEACHER_SUBJECTS[teacher.name];
+  // Check if option exists, if not create it (though it should exist)
+  if (!Array.from(subjectSelect.options).some(opt => opt.value === subject)) {
+    const opt = document.createElement("option");
+    opt.value = subject;
+    opt.text = subject;
+    subjectSelect.add(opt);
+  }
+
+  subjectSelect.value = subject;
+  subjectSelect.disabled = true;
+
+  // Add a visual indicator or label
+  const label = document.querySelector("label[for='globalSubject']");
+  if (label) label.innerHTML += " (Locked for your subject)";
+}
+
+
+// ---------- LOGIC ----------
+
+document.getElementById("loadStudentsBtn").addEventListener("click", loadStudents);
+
+async function loadStudents() {
+  const examType = document.getElementById("globalExamType").value;
+  const subject = document.getElementById("globalSubject").value;
+  const list = document.getElementById("studentsList");
+
+  if (!examType || !subject) {
+    alert("Please select both Exam Type and Subject.");
+    return;
+  }
+
+  list.innerHTML = "<p>Loading students...</p>";
+
+  try {
+    // 1. Fetch Students
+    const res = await fetch(
+      `${API}/teacher/students?teacherId=${teacher._id}&section=${selectedSection}`
+    );
+    const data = await res.json();
+    let students = data.students || [];
+
+    // 2. Filter for Semester Eligibility if needed
+    if (examType === "SEMESTER" || examType === "FINAL") {
+      list.innerHTML = "<p>Checking eligibility (Mid Avg >= 14)... This might take a moment.</p>";
+      students = await filterEligibleStudents(students, subject);
+    }
+
+    renderStudents(students, examType, subject);
+
+  } catch (err) {
+    console.error("Error loading students:", err);
+    list.innerHTML = "<p class='text-error'>Failed to load students.</p>";
+  }
+}
+
+async function filterEligibleStudents(students, subject) {
+  const eligibleStudents = [];
+
+  // Parallel fetch for speed
+  const checks = students.map(async (stu) => {
+    try {
+      const res = await fetch(`${API}/marks/${stu.rollNo}`);
+      const data = await res.json();
+      const marks = data.marks || [];
+
+      // Find Mid 1 and Mid 2 for this subject
+      const mid1 = marks.find(m => (m.examType === "MID-1" || m.examType === "MID 1") && m.subject === subject);
+      const mid2 = marks.find(m => (m.examType === "MID-2" || m.examType === "MID 2") && m.subject === subject);
+
+      const m1Score = mid1 ? parseFloat(mid1.marks) : 0;
+      const m2Score = mid2 ? parseFloat(mid2.marks) : 0;
+
+      const avg = (m1Score + m2Score) / 2;
+
+      if (avg >= 14) {
+        return stu;
+      }
+    } catch (e) {
+      console.error(`Error checking eligibility for ${stu.rollNo}`, e);
+    }
+    return null; // Not eligible or error
+  });
+
+  const results = await Promise.all(checks);
+  return results.filter(s => s !== null);
+}
+
+
+document.getElementById("saveAllBtn").addEventListener("click", saveAllMarks);
+
+// Global list to track rendered students for saving
+let currentStudentList = [];
+
+function renderStudents(students, examType, subject) {
+  const list = document.getElementById("studentsList");
+  currentStudentList = students; // Store for Save All
+
+  if (students.length === 0) {
+    list.innerHTML = `<p>No students found ${examType === "SEMESTER" ? "eligible for Semester exam (Avg < 14)" : "in this section"}.</p>`;
+    return;
+  }
+
+  list.innerHTML = "";
+
+  students.forEach((stu) => {
+    // Create a unique ID for the inputs
+    const safeRoll = stu.rollNo.replace(/\s+/g, '_');
+
+    list.innerHTML += `
+        <div class="student-card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; margin-bottom: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+          <div>
+            <strong>${stu.name}</strong>
+            <div style="font-size: 0.85em; color: gray;">${stu.rollNo}</div>
+          </div>
+          
+          <div class="controls" style="display: flex; gap: 10px; align-items: center;">
+            <input type="number" id="marks-${safeRoll}" placeholder="Marks" min="0" max="100" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+          </div>
+        </div>
+      `;
+  });
+}
+
+// ---------- SAVE ALL MARKS ----------
+async function saveAllMarks() {
+  const examType = document.getElementById("globalExamType").value;
+  const subject = document.getElementById("globalSubject").value;
+  const date = document.getElementById("globalDate").value;
+
+  if (!examType || !subject || !date) {
+    alert("Please select Exam Type, Subject, AND Date before saving.");
+    return;
+  }
+
+  // Determine Max Marks
+  let maxMarks = 100;
+  if (examType.includes("MID")) maxMarks = 40;
+  else if (examType.includes("UNIT")) maxMarks = 10;
+  else if (examType === "SEMESTER" || examType === "FINAL") maxMarks = 60;
+
+  const validEntries = [];
+
+  // Validation Loop
+  for (const stu of currentStudentList) {
+    const safeRoll = stu.rollNo.replace(/\s+/g, '_');
+    const input = document.getElementById(`marks-${safeRoll}`);
+    const marksStr = input.value;
+
+    if (marksStr.trim() !== "") {
+      const marks = Number(marksStr);
+      if (marks < 0 || marks > maxMarks) {
+        alert(`Error for ${stu.name}: Marks cannot be greater than ${maxMarks} for ${examType}!`);
+        input.focus();
+        return; // Stop saving
+      }
+      validEntries.push({ rollNo: stu.rollNo, marks });
+    }
+  }
+
+  if (validEntries.length === 0) {
+    alert("No marks entered to save.");
+    return;
+  }
+
+  // Bulk Save (Parallel Requests)
+  try {
+    const promises = validEntries.map(entry =>
+      fetch(`${API}/marks/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rollNo: entry.rollNo,
+          examType,
+          subject,
+          marks: entry.marks,
+          date
+        })
+      })
+    );
+
+    await Promise.all(promises);
+    alert("All marks saved successfully!");
+
+  } catch (err) {
+    console.error("Save error:", err);
+    alert("Error saving marks (network issue).");
+  }
+}
+
+// ---------- LOGOUT ----------
+document.getElementById("logoutBtn").addEventListener("click", (e) => {
+  e.preventDefault();
+  localStorage.removeItem("userData");
+  localStorage.removeItem("selectedSection");
+  window.location.href = "index.html";
+});
+</file>
+
+<file path="frontend/parent_alerts.html">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Alerts</title>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="parent.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <h2>⚠️ Alerts</h2>
+    <ul>
+        <li><a href="parent_home.html">🏠 Home</a></li>
+        <li><a href="parent_alerts.html" class="active">⚠️ Alerts</a></li>
+        <li><a href="parent_analytics.html">📊 Analytics</a></li>
+        <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+    </ul>
+</nav>
+
+<h1>Risk Alerts & Notifications</h1>
+
+<div class="alert-box">
+    <p id="attAlert"></p>
+    <p id="marksAlert"></p>
+</div>
+
+<script src="parent_alerts.js"></script>
+</body>
+</html>
+</file>
+
+<file path="frontend/parent_alerts.js">
+const parentData = JSON.parse(localStorage.getItem("parentData"));
+
+async function loadAlerts() {
+    try {
+        if (!parentData) {
+            window.location.href = "index.html";
+            return;
+        }
+
+        // 1. Attendance Logic
+        const attRes = await fetch(`http://localhost:5000/attendance/${parentData.rollNo}`);
+        const attData = await attRes.json();
+        const totalClasses = attData.attendance ? attData.attendance.length : 0;
+        const presentClasses = attData.attendance ? attData.attendance.filter(a => a.status === "Present").length : 0;
+        const attPercentage = totalClasses > 0 ? (presentClasses / totalClasses) * 100 : 100;
+        const isAttRisk = attPercentage < 75;
+
+        document.getElementById("attAlert").innerHTML =
+            isAttRisk ?
+                '<span class="badge badge-error">⚠ Attendance at Risk (< 75%)</span>' :
+                '<span class="badge badge-success">✔ Attendance Safe</span>';
+
+
+        // 2. Marks Logic (Detailed Alerts)
+        const marksRes = await fetch(`http://localhost:5000/marks/${parentData.rollNo}`);
+        const marksData = await marksRes.json();
+        const marks = marksData.marks || [];
+
+        let riskList = [];
+
+        // 3. New Logic: Mid Average < 14 check
+        const subjectMarks = {};
+        for (const m of marks) {
+            if (!m.subject) continue;
+            if (!subjectMarks[m.subject]) subjectMarks[m.subject] = { mid1: 0, mid2: 0, hasMid1: false, hasMid2: false };
+
+            const et = m.examType.toUpperCase();
+            if (et === "MID-1") {
+                subjectMarks[m.subject].mid1 = parseFloat(m.marks);
+                subjectMarks[m.subject].hasMid1 = true;
+            }
+            if (et === "MID-2") {
+                subjectMarks[m.subject].mid2 = parseFloat(m.marks);
+                subjectMarks[m.subject].hasMid2 = true;
+            }
+        }
+
+        // Check averages
+        for (const [subj, data] of Object.entries(subjectMarks)) {
+            if (data.hasMid1 && data.hasMid2) {
+                const avg = (data.mid1 + data.mid2) / 2;
+                if (avg < 14) {
+                    riskList.push(`Low Mid Average in <b>${subj}</b> (${avg}/40)`);
+                }
+            }
+        }
+
+        // Specific Exam Checks
+        for (const m of marks) {
+            const et = m.examType.toUpperCase();
+            const score = parseFloat(m.marks);
+            const subject = m.subject || "Unknown";
+
+            // 1. Mid Exams (< 14/40)
+            if ((et === "MID-1" || et === "MID-2") && score < 14) {
+                riskList.push(`Low marks in <b>${subject}</b> in <b>${m.examType}</b> (${score}/40)`);
+            }
+            // 2. Unit Tests (< 4/10)
+            if ((et === "UNIT-1" || et === "UNIT-2") && score < 4) {
+                riskList.push(`Low marks in <b>${subject}</b> in <b>${m.examType}</b> (${score}/10)`);
+            }
+            // 3. Semester (< 24/60)
+            if ((et === "FINAL" || et === "SEMESTER") && score < 24) {
+                riskList.push(`Low marks in <b>${subject}</b> in <b>Semester</b> (${score}/60)`);
+            }
+        }
+
+        if (riskList.length > 0) {
+            const riskHtml = riskList.map(msg => `<div style="margin-top:4px;">• ${msg}</div>`).join("");
+            document.getElementById("marksAlert").innerHTML =
+                `<div class="badge badge-error" style="display:block; text-align:left; line-height:1.4;">
+                    <strong>⚠ Marks at Risk:</strong>
+                    ${riskHtml}
+                 </div>`;
+        } else {
+            document.getElementById("marksAlert").innerHTML =
+                '<span class="badge badge-success">✔ Marks Safe</span>';
+        }
+
+    } catch (err) {
+        console.error("Error loading alerts:", err);
+        document.getElementById("attAlert").innerText = "⚠ Error loading alerts";
+        document.getElementById("marksAlert").innerText = "⚠ Error loading alerts";
+    }
+}
+
+loadAlerts();
+
+// ------------ LOGOUT ----------------
+function logout() {
+    localStorage.removeItem("parentData");
+    window.location.href = "index.html";
+}
+
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", logout);
+}
+</file>
+
+<file path="frontend/parent_analytics.html">
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="parent.css">
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <h2>📊 Analytics</h2>
+        <ul>
+            <li><a href="parent_home.html">🏠 Home</a></li>
+            <li><a href="parent_alerts.html">⚠️ Alerts</a></li>
+            <li><a href="parent_analytics.html" class="active">📊 Analytics</a></li>
+            <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+        </ul>
+    </nav>
+
+    <h1>Student Performance Analytics</h1>
+
+    <!-- Attendance -->
+    <div class="graph-container">
+        <h3>📅 Attendance Trend</h3>
+        <canvas id="attendanceChart"></canvas>
+    </div>
+
+    <!-- Marks Containers with Specific IDs -->
+    <div id="mid1Container" class="graph-container hidden">
+        <h3>📝 Mid-1 Marks Performance</h3>
+        <canvas id="mid1Chart"></canvas>
+    </div>
+
+    <div id="mid2Container" class="graph-container hidden">
+        <h3>📝 Mid-2 Marks Performance</h3>
+        <canvas id="mid2Chart"></canvas>
+    </div>
+
+    <div id="unit1Container" class="graph-container hidden">
+        <h3>📝 Unit-1 Marks Performance</h3>
+        <canvas id="unit1Chart"></canvas>
+    </div>
+
+    <div id="unit2Container" class="graph-container hidden">
+        <h3>📝 Unit-2 Marks Performance</h3>
+        <canvas id="unit2Chart"></canvas>
+    </div>
+
+    <div id="finalContainer" class="graph-container hidden">
+        <h3>📝 Semester Marks Performance</h3>
+        <canvas id="finalChart"></canvas>
+    </div>
+
+    <script src="parent_analytics.js"></script>
+</body>
+
+</html>
+</file>
+
+<file path="frontend/parent_analytics.js">
+const parentData = JSON.parse(localStorage.getItem("parentData"));
+if (!parentData) {
+  window.location.href = "index.html";
+}
+
+// ------------ LOGOUT ----------------
+function logout() {
+  localStorage.removeItem("parentData");
+  window.location.href = "index.html";
+}
+
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", logout);
+}
+
+const API = "http://localhost:5000";
+
+async function loadAnalytics() {
+  try {
+    // ===== Attendance =====
+    const attRes = await fetch(`${API}/attendance/${parentData.rollNo}`);
+    if (!attRes.ok) throw new Error(`Failed to load attendance: ${attRes.status}`);
+
+    const attData = await attRes.json();
+    const attendanceLabels = (attData.attendance || []).map((a) =>
+      new Date(a.date).toLocaleDateString()
+    );
+    const attendanceValues = (attData.attendance || []).map((a) =>
+      a.status === "Present" ? 1 : 0
+    );
+
+    if (attendanceLabels.length === 0) {
+      document.getElementById("attendanceChart").parentElement.innerHTML =
+        `<p style="text-align: center; padding: 20px; color: #999;">No attendance data available</p>`;
+    } else {
+      new Chart(document.getElementById("attendanceChart"), {
+        type: "line",
+        data: {
+          labels: attendanceLabels,
+          datasets: [
+            {
+              label: "Attendance (1 = Present, 0 = Absent)",
+              data: attendanceValues,
+              borderWidth: 2,
+              borderColor: "#2563eb",
+              tension: 0.4,
+            },
+          ],
+        },
+      });
+    }
+
+    // ===== Marks =====
+    const marksRes = await fetch(`${API}/marks/${parentData.rollNo}`);
+    if (!marksRes.ok) throw new Error(`Failed to load marks: ${marksRes.status}`);
+
+    const marksData = await marksRes.json();
+    const allMarks = marksData.marks || [];
+
+    console.log("DEBUG: All Marks Fetched:", allMarks);
+
+    // Reusable chart renderer
+    const render = (typeRegex, label, canvasId, containerId, color, max) => {
+      const data = allMarks.filter(
+        (m) => m.examType && typeRegex.test(m.examType)
+      );
+
+      console.log(`DEBUG: Data for ${label}:`, data);
+
+      const container = document.getElementById(containerId);
+
+      if (!data.length) {
+        if (container)
+          container.innerHTML = `<p style="text-align: center; padding: 20px; color: #999;">No ${label} data available</p>`;
+        return;
+      }
+
+      if (container) container.classList.remove("hidden");
+
+      new Chart(document.getElementById(canvasId), {
+        type: "bar",
+        data: {
+          labels: data.map((m) => m.subject),
+          datasets: [
+            {
+              label: `${label} Marks`,
+              data: data.map((m) => m.marks),
+              backgroundColor: color,
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true, max },
+          },
+          responsive: true,
+        },
+      });
+    };
+
+    // Render all charts
+    render(/MID.*1/i, "MID-1", "mid1Chart", "mid1Container", "#10b981", 40);
+    render(/MID.*2/i, "MID-2", "mid2Chart", "mid2Container", "#f59e0b", 40);
+    render(/UNIT.*1/i, "Unit-1", "unit1Chart", "unit1Container", "#6366f1", 10);
+    render(/UNIT.*2/i, "Unit-2", "unit2Chart", "unit2Container", "#8b5cf6", 10);
+    render(/FINAL|SEMESTER/i, "Semester", "finalChart", "finalContainer", "#ec4899", 60);
+
+  } catch (err) {
+    console.error("Error loading analytics:", err);
+    alert("Failed to load analytics. Please try again.");
+  }
+}
+
+loadAnalytics();
+</file>
+
+<file path="frontend/parent_home.html">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Dashboard</title>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="parent.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <h2 id="parentName">👨‍👩‍👧 Parent Portal</h2>
+    <ul>
+        <li><a href="parent_home.html" class="active">🏠 Home</a></li>
+        <li><a href="parent_alerts.html">⚠️ Alerts</a></li>
+        <li><a href="parent_analytics.html">📊 Analytics</a></li>
+        <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+    </ul>
+</nav>
+
+<h1>Student Dashboard</h1>
+
+<div class="info-box">
+    <h2 id="studentName"></h2>
+    <p><strong>Roll Number:</strong> <span id="studentRoll"></span></p>
+</div>
+
+<script src="parent_home.js"></script>
+</body>
+</html>
+</file>
+
+<file path="frontend/parent_home.js">
+// ------------ LOAD PARENT DATA -------------
+const parentData = JSON.parse(localStorage.getItem("parentData"));
+if (!parentData) window.location.href = "index.html";
+
+document.getElementById("parentName").innerText = "Parent Dashboard";
+
+// ------------ LOAD STUDENT PROFILE -------------
+async function loadHome() {
+    try {
+        // fetch student from backend
+        const studentRes = await fetch(`http://localhost:5000/auth/parent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(parentData)
+        });
+
+        if (!studentRes.ok) throw new Error(`HTTP ${studentRes.status}`);
+
+        const result = await studentRes.json();
+
+        if (!result.student) {
+            alert("Invalid login session!");
+            logout();
+            return;
+        }
+
+        const student = result.student;
+
+        // show details
+        document.getElementById("studentName").innerText = "Name: " + student.name;
+        document.getElementById("studentRoll").innerText = "Roll: " + student.rollNo;
+
+
+        // ---------------- ALERT POPUP (Frontend Calculation) ----------------
+        // Fetch marks to calculate risks live, bypassing backend worker delays
+        let riskList = [];
+        try {
+            const marksRes = await fetch(`http://localhost:5000/marks/${student.rollNo}`);
+            const marksData = await marksRes.json();
+            const marks = marksData.marks || [];
+
+            // 1. Check Mid Averages
+            const subjectMarks = {};
+            for (const m of marks) {
+                if (!m.subject) continue;
+                if (!subjectMarks[m.subject]) subjectMarks[m.subject] = { mid1: 0, mid2: 0, hasMid1: false, hasMid2: false };
+
+                const et = m.examType.toUpperCase();
+                if (et === "MID-1") {
+                    subjectMarks[m.subject].mid1 = parseFloat(m.marks);
+                    subjectMarks[m.subject].hasMid1 = true;
+                }
+                if (et === "MID-2") {
+                    subjectMarks[m.subject].mid2 = parseFloat(m.marks);
+                    subjectMarks[m.subject].hasMid2 = true;
+                }
+            }
+
+            for (const [subj, data] of Object.entries(subjectMarks)) {
+                if (data.hasMid1 && data.hasMid2) {
+                    const avg = (data.mid1 + data.mid2) / 2;
+                    if (avg < 14) {
+                        riskList.push(`Low Mid Average risk in ${subj} (${avg}/40)`);
+                    }
+                }
+            }
+
+            // 2. Specific Exam Checks
+            for (const m of marks) {
+                const et = m.examType.toUpperCase();
+                const score = parseFloat(m.marks);
+                const subject = m.subject || "Unknown";
+
+                if ((et === "MID-1" || et === "MID-2") && score < 14) {
+                    riskList.push(`Low marks risk in ${subject} (${m.examType})`);
+                }
+                if ((et === "UNIT-1" || et === "UNIT-2") && score < 4) {
+                    riskList.push(`Low marks risk in ${subject} (${m.examType})`);
+                }
+                if ((et === "FINAL" || et === "SEMESTER") && score < 24) {
+                    riskList.push(`Low marks risk in ${subject} (Semester)`);
+                }
+            }
+        } catch (markErr) {
+            console.error("Error fetching marks for alerts:", markErr);
+        }
+
+        const hasAttRisk = result.alerts && result.alerts.attendance;
+        const hasMarksRisk = riskList.length > 0;
+
+        if (hasAttRisk || hasMarksRisk) {
+            let alertMsg = "⚠ Your child is at risk:\n";
+            if (hasAttRisk) alertMsg += "- Low Attendance\n";
+
+            if (hasMarksRisk) {
+                riskList.forEach(msg => {
+                    alertMsg += `- ${msg}\n`;
+                });
+            }
+
+            // Small delay to ensure UI renders first
+            setTimeout(() => alert(alertMsg), 100);
+        }
+    } catch (err) {
+        console.error("Error loading home:", err);
+        alert("Failed to load student data. Please try again.");
+    }
+}
+loadHome();
+
+
+// ---------------- LOGOUT ----------------
+function logout() {
+    localStorage.removeItem("parentData");
+    window.location.href = "index.html";
+}
+
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", logout);
+}
+</file>
+
+<file path="frontend/parent.css">
+@import url('design-system.css');
+
+/* ============================================
+   PARENT DASHBOARD STYLES
+   ============================================ */
+body {
+    padding: 0;
+    background: var(--color-bg-primary);
+    min-height: 100vh;
+}
+
+/* ============================================
+   NAVBAR
+   ============================================ */
+.navbar {
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid var(--color-border-light);
+    padding: var(--spacing-md) var(--spacing-xl);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    backdrop-filter: blur(8px);
+}
+
+.navbar h2 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    background: var(--gradient-primary-alt);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.navbar ul {
+    list-style: none;
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+    margin: 0;
+    padding: 0;
+}
+
+.navbar ul li a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    font-size: var(--font-size-sm);
+    position: relative;
+}
+
+.navbar ul li a:hover {
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
+}
+
+.navbar ul li a.active {
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
+    font-weight: var(--font-weight-semibold);
+}
+
+.logout-btn {
+    background-color: var(--color-white);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-fast);
+    font-size: var(--font-size-sm);
+    margin-left: var(--spacing-md);
+}
+
+.logout-btn:hover {
+    background-color: var(--color-error);
+    color: var(--color-white);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+}
+
+/* ============================================
+   PAGE HEADER
+   ============================================ */
+h1 {
+    margin: var(--spacing-2xl) auto var(--spacing-xl);
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+    max-width: 1200px;
+    padding: 0 var(--spacing-lg);
+    font-weight: var(--font-weight-bold);
+}
+
+/* ============================================
+   CONTAINER
+   ============================================ */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--spacing-lg) var(--spacing-lg);
+    /* Reduced bottom padding */
+    animation: fadeIn var(--transition-normal) ease-out;
+}
+
+/* ... */
+
+/* ============================================
+   INFO BOX (Student Info)
+   ============================================ */
+.info-box {
+    background: var(--gradient-primary);
+    /* Use gradient like student portal */
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    /* Reduced */
+    margin: 0 auto var(--spacing-lg);
+    /* Reduced */
+    box-shadow: var(--shadow-lg);
+    color: var(--color-white);
+    max-width: 1200px;
+    width: calc(100% - (var(--spacing-lg) * 2));
+}
+
+/* ... */
+
+/* ============================================
+   ALERT BOX
+   ============================================ */
+.alert-box {
+    background: var(--color-white);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    /* Reduced */
+    margin: var(--spacing-lg) auto;
+    /* Reduced */
+    box-shadow: var(--shadow-sm);
+    max-width: 1200px;
+    width: calc(100% - (var(--spacing-lg) * 2));
+    border: 1px solid var(--color-border-light);
+}
+
+/* ... */
+
+/* ============================================
+   GRAPH CONTAINER
+   ============================================ */
+.graph-container {
+    background: var(--color-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    /* Reduced */
+    margin: var(--spacing-lg) auto;
+    /* Reduced */
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    max-width: 1200px;
+    width: calc(100% - (var(--spacing-lg) * 2));
+}
+
+.graph-container:hover {
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary-light);
+}
+
+.graph-container h3 {
+    color: var(--color-text-primary);
+    margin-top: 0;
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+}
+
+.graph-container canvas {
+    max-width: 100%;
+    height: auto !important;
+    min-height: 350px;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: stretch;
+    }
+
+    .navbar ul {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    h1 {
+        text-align: center;
+        padding: 0 var(--spacing-md);
+    }
+
+    .info-box,
+    .alert-box,
+    .graph-container {
+        width: calc(100% - (var(--spacing-md) * 2));
+        margin-left: var(--spacing-md);
+        margin-right: var(--spacing-md);
+        padding: var(--spacing-lg);
+    }
+
+    .graph-container canvas {
+        min-height: 250px;
+    }
+}
+</file>
+
+<file path="frontend/script.js">
+const roleSelect = document.getElementById("role");
+const msg = document.getElementById("msg");
+
+// Toggle fields based on role
+// Toggle fields based on role - REMOVED (Single login form)
+// roleSelect.addEventListener("change", () => { ... });
+
+// LOGIN LOGIC
+document.getElementById("loginBtn").addEventListener("click", async () => {
+    msg.style.color = "black";
+    msg.innerText = "Checking...";
+
+    let url = "";
+    let body = {};
+
+    const usernameInput = document.getElementById("username").value;
+    const passwordInput = document.getElementById("password").value;
+
+    // SELECT URL + BODY BASED ON ROLE
+    if (roleSelect.value === "student") {
+        url = "http://localhost:5000/auth/student";
+        body = {
+            rollNo: usernameInput,
+            password: passwordInput
+        };
+    }
+
+    else if (roleSelect.value === "parent") {
+        url = "http://localhost:5000/auth/parent";
+        body = {
+            rollNo: usernameInput,
+            password: passwordInput
+        };
+    }
+
+    else if (roleSelect.value === "teacher") {
+        url = "http://localhost:5000/auth/teacher";
+        body = {
+            name: usernameInput,
+            password: passwordInput
+        };
+    }
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        // Safety: make sure message exists and is a string
+        if (data.message && data.message.includes("successful")) {
+            msg.style.color = "green";
+            msg.innerText = "Login successful! Redirecting...";
+
+            if (roleSelect.value === "student") {
+                // store student cleanly if you want later
+                localStorage.setItem("userData", JSON.stringify({
+                    student: data.student
+                }));
+                window.location.href = "student.html";
+            }
+
+            else if (roleSelect.value === "parent") {
+                // we only really need rollNo for parent
+                localStorage.setItem("parentData", JSON.stringify({
+                    rollNo: body.rollNo,
+                    password: body.password
+                }));
+                window.location.href = "parent_home.html";
+            }
+
+            else if (roleSelect.value === "teacher") {
+                // 🔥 IMPORTANT: store full teacher object in a predictable way
+                localStorage.setItem("userData", JSON.stringify({
+                    teacher: data.teacher
+                }));
+                // 🔥 IMPORTANT: go to teacher_home.html (section selector)
+                window.location.href = "teacher_home.html";
+            }
+
+            return;
+        }
+
+        // ----------------- FAILED LOGIN -----------------
+        msg.style.color = "red";
+        msg.innerText = data.message || "Invalid credentials!";
+    } catch (err) {
+        console.error("Login error:", err);
+        msg.style.color = "red";
+        msg.innerText = "Server error!";
+    }
+});
+</file>
+
+<file path="frontend/student.css">
+@import url('design-system.css');
+
+/* ============================================
+   STUDENT DASHBOARD STYLES
+   ============================================ */
+body {
+    padding: 0;
+    background: var(--color-bg-primary);
+    min-height: 100vh;
+}
+
+/* ============================================
+   HEADER / NAVBAR
+   ============================================ */
+.header {
+    background: var(--color-white);
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-bottom: 1px solid var(--color-border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.header h1 {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    background: var(--gradient-primary-alt);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.logout-btn {
+    background-color: var(--color-white);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-fast);
+}
+
+.logout-btn:hover {
+    background-color: var(--color-error);
+    color: var(--color-white);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+}
+
+/* ============================================
+   MAIN CONTAINER
+   ============================================ */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--spacing-lg);
+    /* Reduced from 2xl */
+    animation: fadeIn var(--transition-normal) ease-out;
+}
+
+/* ... (fadeIn keyframes unchanged) ... */
+
+/* ============================================
+   INFO CARD (Welcome Section)
+   ============================================ */
+.info-box {
+    background: var(--gradient-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    /* Reduced from xl/2xl */
+    margin-bottom: var(--spacing-lg);
+    /* Reduced from 2xl */
+    box-shadow: var(--shadow-lg);
+    color: var(--color-white);
+    position: relative;
+    overflow: hidden;
+    border: none;
+}
+
+/* ... (decorative shapes unchanged) ... */
+
+/* ============================================
+   SECTION CARDS
+   ============================================ */
+.section {
+    background: var(--color-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    /* Reduced from xl */
+    margin-bottom: var(--spacing-lg);
+    /* Reduced from 2xl */
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-normal);
+}
+
+.section:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.section h3 {
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: var(--spacing-md);
+}
+
+thead th {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.05em;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-normal);
+}
+
+thead th:first-child {
+    border-top-left-radius: var(--radius-md);
+}
+
+thead th:last-child {
+    border-top-right-radius: var(--radius-md);
+}
+
+tbody td {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-light);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+tbody tr:hover {
+    background-color: var(--color-bg-primary);
+}
+
+.table-empty {
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-style: italic;
+    background-color: var(--color-bg-primary);
+}
+
+/* ============================================
+   RISK STATUS SECTION
+   ============================================ */
+.risk-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md) 0;
+}
+
+.risk-item {
+    background: var(--color-bg-secondary);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    border: 1px solid var(--color-border-light);
+}
+
+.risk-item label {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+/* Badges */
+.badge {
+    display: inline-flex;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+}
+
+#attendanceRisk.at-risk,
+#marksRisk.at-risk {
+    background-color: var(--color-error-light);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+}
+
+#attendanceRisk.good,
+#marksRisk.good {
+    background-color: var(--color-success-light);
+    color: var(--color-success);
+    border: 1px solid var(--color-success);
+}
+
+#attendanceRisk.warning,
+#marksRisk.warning {
+    background-color: var(--color-warning-light);
+    color: var(--color-warning);
+    border: 1px solid var(--color-warning);
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: stretch;
+        text-align: center;
+    }
+
+    .container {
+        padding: var(--spacing-lg);
+    }
+
+    .info-box {
+        padding: var(--spacing-lg);
+        text-align: center;
+    }
+
+    .info-box::before {
+        display: none;
+    }
+
+    .section {
+        padding: var(--spacing-lg);
+    }
+}
+</file>
+
+<file path="frontend/student.html">
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="student.css">
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>📚 Student Dashboard</h1>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="container">
+        <!-- Student Info Card -->
+        <div class="info-box">
+            <h2 id="studentName">Name: </h2>
+            <p><strong>Roll Number:</strong> <span id="studentRoll"></span></p>
+        </div>
+
+        <!-- Attendance Section -->
+        <div class="section">
+            <h3>📋 Attendance Overview</h3>
+
+            <div class="attendance-grid" style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+                <!-- Overall Card -->
+                <div class="card"
+                    style="text-align: center; padding: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div id="attendancePercentage"
+                        style="font-size: 3.5rem; font-weight: bold; color: var(--color-primary);">--%</div>
+                    <p style="color: var(--color-text-secondary); margin-top: 5px;">Overall Attendance</p>
+                    <div id="attendanceDetails" style="font-size: 0.9rem; color: var(--color-text-tertiary);">-- / --
+                    </div>
+                </div>
+
+                <!-- Subject-wise Grid -->
+                <div id="subjectAttendanceGrid"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
+                    <!-- Injected by JS -->
+                    <p>Loading subjects...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Marks Section -->
+        <div class="section">
+            <h3>⭐ Marks Records</h3>
+            <div id="marksContainer">
+                <!-- Dynamic Tables will be injected here -->
+                <p>Loading marks...</p>
+            </div>
+        </div>
+
+        <!-- Risk Status Section -->
+        <div class="section">
+            <h3>⚠️ Performance Status</h3>
+            <div class="risk-row">
+                <div class="risk-item">
+                    <label>Attendance Status:</label>
+                    <span id="attendanceRisk" class="badge">Loading...</span>
+                </div>
+                <div class="risk-item">
+                    <label>Marks Status:</label>
+                    <span id="marksRisk" class="badge">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="student.js"></script>
+</body>
+
+</html>
+</file>
+
+<file path="frontend/student.js">
+// Get student info from login page redirect
+const data = JSON.parse(localStorage.getItem("userData"));
+const student = data ? data.student : null;
+
+if (!student) {
+    alert("No student data found! Login again.");
+    window.location.href = "index.html";
+}
+
+// Display student info
+document.getElementById("studentName").innerText = "Name: " + student.name;
+document.getElementById("studentRoll").innerText = "Roll No: " + student.rollNo;
+
+
+// =================== LOAD ATTENDANCE ===================
+// =================== LOAD ATTENDANCE ===================
+async function loadAttendance() {
+    try {
+        const res = await fetch(`http://localhost:5000/attendance/${student.rollNo}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const records = data.attendance || [];
+
+        // 1. Overall Stats
+        if (records.length === 0) {
+            document.getElementById("attendancePercentage").innerText = "N/A";
+            document.getElementById("attendanceDetails").innerText = "No records";
+            document.getElementById("subjectAttendanceGrid").innerHTML = "<p>No data</p>";
+            return;
+        }
+
+        const totalClasses = records.length;
+        const presentClasses = records.filter(a => a.status === 'Present').length;
+        const overallPercent = ((presentClasses / totalClasses) * 100).toFixed(1);
+
+        const percEl = document.getElementById("attendancePercentage");
+        percEl.innerText = `${overallPercent}%`;
+        document.getElementById("attendanceDetails").innerText = `${presentClasses} / ${totalClasses} Days`;
+
+        // Color coding
+        if (overallPercent < 75) percEl.style.color = "var(--color-error)";
+        else percEl.style.color = "var(--color-success)";
+
+        // 2. Subject-wise Stats
+        const subjects = {};
+        records.forEach(r => {
+            const sub = r.subject || "Unknown";
+            if (!subjects[sub]) subjects[sub] = { total: 0, present: 0 };
+            subjects[sub].total++;
+            if (r.status === "Present") subjects[sub].present++;
+        });
+
+        const grid = document.getElementById("subjectAttendanceGrid");
+        grid.innerHTML = "";
+
+        for (const [sub, stats] of Object.entries(subjects)) {
+            const subPerc = ((stats.present / stats.total) * 100).toFixed(0);
+            const colorClass = subPerc < 75 ? "text-error" : "text-success"; // You might need CSS for this or inline style
+            const colorStyle = subPerc < 75 ? "var(--color-error)" : "var(--color-success)";
+
+            grid.innerHTML += `
+                <div class="card" style="padding: 15px; text-align: center; border: 1px solid var(--color-border-normal);">
+                    <h4 style="margin-bottom: 5px; font-size: 0.9rem;">${sub}</h4>
+                    <div style="font-size: 1.5rem; font-weight: bold; color: ${colorStyle}">${subPerc}%</div>
+                    <div style="font-size: 0.8rem; color: var(--color-text-tertiary);">${stats.present}/${stats.total}</div>
+                </div>
+            `;
+        }
+
+    } catch (err) {
+        console.error("Error loading attendance:", err);
+        document.getElementById("attendancePercentage").innerText = "Error";
+    }
+}
+loadAttendance();
+
+
+// =================== LOAD MARKS ===================
+async function loadMarks() {
+    try {
+        const res = await fetch(`http://localhost:5000/marks/${student.rollNo}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const container = document.getElementById("marksContainer");
+        const marks = data.marks || [];
+
+        if (marks.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted">No marks records available</p>';
+            return;
+        }
+
+        container.innerHTML = ""; // Clear loader
+
+        // Group by Exam Type
+        const groupedMarks = {};
+        marks.forEach(m => {
+            const type = m.examType || "Other";
+            if (!groupedMarks[type]) groupedMarks[type] = [];
+            groupedMarks[type].push(m);
+        });
+
+        // Generate Tables for each type
+        for (const [type, records] of Object.entries(groupedMarks)) {
+            // Create Section Header
+            let displayType = type.toUpperCase();
+            if (displayType === "FINAL") displayType = "SEMESTER";
+
+            const header = document.createElement("h4");
+            header.style.marginTop = "20px";
+            header.style.marginBottom = "10px";
+            header.style.color = "var(--color-primary)";
+            header.style.borderBottom = "2px solid var(--color-border-normal)";
+            header.style.paddingBottom = "5px";
+            header.innerText = displayType;
+            container.appendChild(header);
+
+            // Create Table
+            const table = document.createElement("table");
+            table.style.width = "100%";
+            table.style.marginBottom = "20px";
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th style="text-align: left;">Subject</th>
+                        <th style="text-align: left;">Marks</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            `;
+
+            const tbody = table.querySelector("tbody");
+            records.forEach(m => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${m.subject}</td>
+                    <td><strong>${m.marks}</strong></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            container.appendChild(table);
+        }
+
+    } catch (err) {
+        console.error("Error loading marks:", err);
+        document.getElementById("marksContainer").innerHTML = '<p class="text-error">Failed to load marks</p>';
+    }
+}
+loadMarks();
+
+
+// =================== LOAD RISK FROM REDIS ===================
+async function loadRisk() {
+    try {
+        const res = await fetch(`http://localhost:5000/auth/parent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                rollNo: student.rollNo,
+                password: "kmit123"
+            })
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const attBox = document.getElementById("attendanceRisk");
+        const marksBox = document.getElementById("marksRisk");
+
+        if (!data.alerts) {
+            attBox.innerText = "⚠ Unable to load status";
+            marksBox.innerText = "⚠ Unable to load status";
+            return;
+        }
+
+        if (data.alerts.attendance) {
+            attBox.className = "badge badge-error";
+            attBox.innerText = "⚠ At Risk";
+        } else {
+            attBox.className = "badge badge-success";
+            attBox.innerText = "✔ Safe";
+        }
+
+        // Marks
+        if (data.alerts.marks) {
+            marksBox.className = "badge badge-error";
+            marksBox.innerText = "⚠ At Risk";
+        } else {
+            marksBox.className = "badge badge-success";
+            marksBox.innerText = "✔ Safe";
+        }
+    } catch (err) {
+        console.error("Error loading risk status:", err);
+        document.getElementById("attendanceRisk").innerText = "⚠ Error";
+        document.getElementById("marksRisk").innerText = "⚠ Error";
+    }
+}
+loadRisk();
+
+// =================== LOGOUT ===================
+function logout() {
+    localStorage.removeItem("userData");
+    window.location.href = "index.html";
+}
+
+const logoutBtn = document.querySelector(".logout-btn");
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", logout);
+}
+</file>
+
+<file path="frontend/style.css">
+@import url('design-system.css');
+
+/* ============================================
+   GLOBAL & LAYOUT
+   ============================================ */
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background-color: var(--color-bg-primary);
+    overflow-x: hidden;
+}
+
+.split-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+    width: 100%;
+}
+
+/* ============================================
+   HERO SECTION (Left Side)
+   ============================================ */
+.hero-section {
+    background: var(--gradient-primary);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--spacing-4xl);
+    color: var(--color-white);
+    overflow: hidden;
+}
+
+/* Abstract Background Pattern */
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+    transform: rotate(30deg);
+    pointer-events: none;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 10;
+    max-width: 600px;
+}
+
+.brand-badge {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-md);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--spacing-lg);
+    backdrop-filter: blur(5px);
+}
+
+.hero-section h1 {
+    font-size: 3.5rem;
+    line-height: 1.1;
+    margin-bottom: var(--spacing-xl);
+    background: linear-gradient(to right, #ffffff, #e0e7ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
+    color: var(--color-white);
+    /* Fallback */
+}
+
+.hero-section p {
+    font-size: var(--font-size-xl);
+    line-height: var(--line-height-relaxed);
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: var(--spacing-3xl);
+    max-width: 480px;
+}
+
+.hero-features {
+    display: flex;
+    gap: var(--spacing-xl);
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-weight: var(--font-weight-medium);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.feature-item .icon {
+    font-size: var(--font-size-xl);
+}
+
+/* ============================================
+   LOGIN SECTION (Right Side)
+   ============================================ */
+.login-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-2xl);
+    background-color: var(--color-bg-primary);
+    position: relative;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 440px;
+    animation: fadeIn var(--transition-slow) ease-out;
+}
+
+.login-header {
+    text-align: left;
+    margin-bottom: var(--spacing-2xl);
+}
+
+.login-header h2 {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.login-header p {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-base);
+}
+
+.login-box {
+    /* Removed card styling for cleaner look on split screen */
+    background: transparent;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+}
+
+/* Form Styles */
+.form-field {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-field label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.form-field input,
+.form-field select {
+    width: 100%;
+    padding: 12px 16px;
+    font-size: var(--font-size-base);
+    border: 1px solid var(--color-border-normal);
+    border-radius: var(--radius-md);
+    background-color: var(--color-white);
+    transition: all var(--transition-fast);
+}
+
+.form-field input:focus,
+.form-field select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-light);
+    outline: none;
+}
+
+.select-wrapper {
+    position: relative;
+}
+
+/* Custom Checkbox */
+.form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xl);
+    margin-top: var(--spacing-md);
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.remember-me input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    accent-color: var(--color-primary);
+}
+
+.remember-me label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    margin-bottom: 0;
+    font-weight: var(--font-weight-normal);
+}
+
+.forgot-password {
+    font-size: var(--font-size-sm);
+    color: var(--color-primary);
+    font-weight: var(--font-weight-medium);
+}
+
+.forgot-password:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
+}
+
+/* Submit Button */
+button[type="submit"] {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: 14px;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    background: var(--gradient-primary-alt);
+    color: var(--color-white);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    box-shadow: var(--shadow-md);
+}
+
+button[type="submit"]:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+button[type="submit"]:active {
+    transform: translateY(0);
+}
+
+/* Footer */
+.login-footer {
+    margin-top: var(--spacing-3xl);
+    text-align: center;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+}
+
+/* Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Messages */
+#msg {
+    margin-top: var(--spacing-lg);
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 900px) {
+    .split-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-section {
+        padding: var(--spacing-2xl);
+        min-height: 300px;
+    }
+
+    .hero-section h1 {
+        font-size: 2.5rem;
+    }
+
+    .login-section {
+        padding: var(--spacing-xl);
+        border-top-left-radius: var(--radius-xl);
+        border-top-right-radius: var(--radius-xl);
+        margin-top: -20px;
+        /* Slight overlap */
+        background: var(--color-bg-primary);
+    }
+}
+</file>
+
+<file path="frontend/teacher_home.html">
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Teacher Home</title>
+  <link rel="stylesheet" href="teacher.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <h2 id="teacherName"></h2>
+    <ul>
+      <li><a href="teacher_home.html">Home</a></li>
+      <li><button id="logoutBtn" class="btn">Logout</button></li>
+    </ul>
+  </nav>
+
+  <div class="container">
+    <h3>Select Section</h3>
+
+    <p>Choose one of your sections and then go to Attendance or Marks.</p>
+
+    <div id="sectionWrapper">
+      <!-- Filled by JS -->
+    </div>
+
+    <div id="actions" style="margin-top: 20px; display:none;">
+      <p id="selectedSectionLabel"></p>
+
+      <button id="goAttendance" class="btn">Go to Attendance</button>
+      <button id="goMarks" class="btn">Go to Marks</button>
+    </div>
+  </div>
+
+  <script src="teacher_home.js"></script>
+</body>
+</html>
+</file>
+
+<file path="frontend/teacher_home.js">
+const API = "http://localhost:5000";
+
+// Get logged-in teacher from localStorage
+const userData = JSON.parse(localStorage.getItem("userData"));
+if (!userData || !userData.teacher) {
+  alert("Please login as teacher first!");
+  window.location.href = "index.html";
+}
+
+const teacher = userData.teacher;
+
+// Mapping Configuration
+// Mapping Configuration
+const TEACHER_CONFIG = {
+  "Physics Teacher": ["A", "B"],
+  "Math Teacher": ["A", "B"],
+  "English Teacher": ["A", "B"],
+  "Chemistry Teacher": ["A", "B"]
+};
+
+// Show teacher name
+document.getElementById("teacherName").innerText = `Teacher: ${teacher.name}`;
+
+// Logout
+document.getElementById("logoutBtn").onclick = () => {
+  localStorage.removeItem("userData");
+  localStorage.removeItem("selectedSection");
+  window.location.href = "index.html";
+};
+
+// 🔥 Instead of using teacher.sections blindly,
+// we derive sections from the teacher's students or config
+async function initSections() {
+  const wrapper = document.getElementById("sectionWrapper");
+  wrapper.innerHTML = "<p>Loading your sections...</p>";
+
+  try {
+    let sections = [];
+
+    // Check if we have a hardcoded config for this teacher
+    if (TEACHER_CONFIG[teacher.name]) {
+      sections = TEACHER_CONFIG[teacher.name];
+    } else {
+      // Fallback to fetching derived sections from students
+      const res = await fetch(`${API}/teacher/students?teacherId=${teacher._id}`);
+      const data = await res.json();
+      const students = data.students || [];
+
+      const sectionSet = new Set(students.map((s) => s.section));
+      sections = Array.from(sectionSet).sort();
+    }
+
+    // If no sections found
+    if (!sections.length) {
+      wrapper.innerHTML = "<p>No sections found for you.</p>";
+      return;
+    }
+
+    let html = "<div class='section-list'>";
+    sections.forEach((sec) => {
+      html += `
+        <button class="btn section-btn" data-section="${sec}">
+          Section ${sec}
+        </button>
+      `;
+    });
+    html += "</div>";
+
+    wrapper.innerHTML = html;
+
+    document.querySelectorAll(".section-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const sec = btn.getAttribute("data-section");
+        localStorage.setItem("selectedSection", sec);
+        document.getElementById("selectedSectionLabel").innerText =
+          "Selected Section: " + sec;
+        document.getElementById("actions").style.display = "block";
+      });
+    });
+
+    // If already selected earlier, show it
+    const existing = localStorage.getItem("selectedSection");
+    if (existing && sections.includes(existing)) {
+      document.getElementById("selectedSectionLabel").innerText =
+        "Selected Section: " + existing;
+      document.getElementById("actions").style.display = "block";
+    }
+  } catch (err) {
+    console.error("Error loading sections:", err);
+    wrapper.innerHTML = "<p>Failed to load sections from server.</p>";
+  }
+}
+
+initSections();
+
+// Navigation buttons
+document.getElementById("goAttendance").onclick = () => {
+  if (!localStorage.getItem("selectedSection")) {
+    alert("Please select a section first");
+    return;
+  }
+  window.location.href = "attendance_page.html";
+};
+
+document.getElementById("goMarks").onclick = () => {
+  if (!localStorage.getItem("selectedSection")) {
+    alert("Please select a section first");
+    return;
+  }
+  window.location.href = "marks_page.html";
+};
+</file>
+
+<file path="frontend/teacher.css">
+@import url('design-system.css');
+
+/* ============================================
+   TEACHER DASHBOARD STYLES
+   ============================================ */
+body {
+    padding: 0;
+    background: var(--color-bg-primary);
+    min-height: 100vh;
+}
+
+/* ============================================
+   NAVBAR
+   ============================================ */
+.navbar {
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid var(--color-border-light);
+    padding: var(--spacing-md) var(--spacing-xl);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    backdrop-filter: blur(8px);
+}
+
+.navbar h2 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    background: var(--gradient-primary-alt);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.navbar ul {
+    list-style: none;
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+    margin: 0;
+    padding: 0;
+}
+
+.navbar ul li a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    font-size: var(--font-size-sm);
+    position: relative;
+    overflow: hidden;
+}
+
+.navbar ul li a:hover {
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
+}
+
+.navbar ul li a.active {
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
+    font-weight: var(--font-weight-semibold);
+}
+
+.logout-btn {
+    background-color: var(--color-white);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-fast);
+    font-size: var(--font-size-sm);
+    margin-left: var(--spacing-md);
+}
+
+.logout-btn:hover {
+    background-color: var(--color-error);
+    color: var(--color-white);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+}
+
+/* ============================================
+   WELCOME BOX (Hero)
+   ============================================ */
+.welcome-box {
+    margin: var(--spacing-3xl) auto;
+    text-align: center;
+    max-width: 800px;
+    padding: var(--spacing-3xl) var(--spacing-xl);
+    background: var(--gradient-primary);
+    border-radius: var(--radius-xl);
+    color: var(--color-white);
+    box-shadow: var(--shadow-xl);
+    position: relative;
+    overflow: hidden;
+}
+
+.welcome-box::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.welcome-box h1 {
+    font-size: var(--font-size-4xl);
+    color: var(--color-white);
+    margin-bottom: var(--spacing-md);
+    position: relative;
+    z-index: 10;
+}
+
+.welcome-box p {
+    font-size: var(--font-size-lg);
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+    position: relative;
+    z-index: 10;
+}
+
+/* ============================================
+   CONTENT CONTENT AREA
+   ============================================ */
+.content-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--spacing-lg);
+    /* Reduced from 2xl */
+}
+
+.content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xl);
+    border-bottom: 2px solid var(--color-border-light);
+    padding-bottom: var(--spacing-md);
+}
+
+.content-header h1 {
+    margin: 0;
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+/* ============================================
+   STUDENT CARDS
+   ============================================ */
+/* ============================================
+   CONTROLS PANEL (Marks Page)
+   ============================================ */
+.controls-panel {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-normal);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: flex-end;
+    /* Align inputs and buttons bottom */
+    flex-wrap: wrap;
+    box-shadow: var(--shadow-sm);
+
+    /* STICKY BEHAVIOR */
+    position: sticky;
+    top: 80px;
+    /* Adjust based on navbar height */
+    z-index: 90;
+    /* Below navbar (100) but above content */
+    backdrop-filter: blur(5px);
+    /* Nice effect if transparent, but we have bg color */
+}
+
+.controls-panel .form-group {
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 150px;
+}
+
+.controls-panel label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+.controls-panel select,
+.controls-panel input[type="date"] {
+    background: var(--color-white);
+    padding: 8px 12px;
+    height: 40px;
+    /* Uniform height */
+}
+
+.controls-panel button {
+    height: 40px;
+    padding: 0 var(--spacing-xl);
+    font-weight: var(--font-weight-semibold);
+    display: flex;
+    align-items: center;
+}
+
+/* ============================================
+   STUDENT CARDS (List Item Style)
+   ============================================ */
+.student-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    /* Slightly sharper */
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    /* Very subtle shadow */
+    display: grid;
+    grid-template-columns: 2fr 1.5fr auto;
+    /* Name/Info | Space | Controls */
+    align-items: center;
+    gap: var(--spacing-md);
+    transition: border-color var(--transition-fast);
+}
+
+.student-card:hover {
+    border-color: var(--color-primary);
+    background-color: #fafaff;
+    /* Very slight tint on hover */
+}
+
+.student-card strong {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+}
+
+.student-card div {
+    /* Helper for sub-text */
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.student-card input[type="number"] {
+    width: 100px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border-normal);
+    border-radius: var(--radius-md);
+    text-align: center;
+    font-weight: 500;
+}
+
+.student-card input[type="number"]:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+/* ============================================
+   DATA TABLE - TEACHER VIEW
+   ============================================ */
+.data-table {
+    background: var(--color-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    margin-top: var(--spacing-xl);
+    border: 1px solid var(--color-border-light);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    background-color: var(--color-bg-secondary);
+    padding: var(--spacing-md) var(--spacing-lg);
+    text-align: left;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border-normal);
+}
+
+tbody td {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-light);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+tbody tr:hover {
+    background-color: var(--color-bg-primary);
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================
+   FORM STYLES
+   ============================================ */
+.form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border-normal);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    transition: all var(--transition-fast);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: stretch;
+    }
+
+    .navbar ul {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .student-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .student-card-actions {
+        width: 100%;
+        margin-top: var(--spacing-md);
+    }
+
+    .student-card-actions button {
+        flex: 1;
+        justify-content: center;
+    }
+}
+</file>
+
+<file path="frontend/teacher.html">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teacher Dashboard</title>
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="teacher.css" />
+</head>
+<body>
+
+  <nav class="navbar">
+    <h2 id="teacherName">👨‍🏫 Teacher Portal</h2>
+    <ul>
+      <li><a href="attendance_page.html">📋 Attendance</a></li>
+      <li><a href="marks_page.html">⭐ Marks</a></li>
+      <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+    </ul>
+  </nav>
+
+  <div class="welcome-box">
+    <h1>Welcome, Teacher! 👋</h1>
+    <p>Select an option from the navigation bar to manage student records.</p>
+  </div>
+  
+  <script src="teacher.js"></script>
+</body>
+</html>
+</file>
+
+<file path="frontend/teacher.js">
+// Common teacher info setup
+const userData = JSON.parse(localStorage.getItem("userData"));
+if (!userData || !userData.teacher) {
+  alert("Login first!");
+  window.location.href = "index.html";
+}
+
+const teacher = userData.teacher;
+
+
+document.getElementById("teacherName").innerText = "Teacher: " + teacher.name;
+
+// logout
+function logout() {
+  localStorage.removeItem("userData");
+  localStorage.removeItem("selectedSection");
+  window.location.href = "index.html";
+}
+
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    logout();
+  });
+}
+</file>
+
+<file path="ml-flask/app.py">
+from flask import Flask, request, jsonify
+from model import RiskModel
+
+app = Flask(__name__)
+model = RiskModel()
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    data = request.json or {}
+
+    attendance = data.get("attendance_percent", 0)
+    marks = data.get("avg_marks", 0)
+
+    risk_score = model.predict_risk(attendance, marks)
+
+    return jsonify({
+        "risk_score": risk_score
+    })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
+</file>
+
+<file path="ml-flask/Dockerfile">
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["python", "app.py"]
+</file>
+
+<file path="ml-flask/model.py">
+class RiskModel:
+    def __init__(self):
+        pass
+
+    # OLD method (if you ever use the Flask API directly)
+    def predict_risk(self, attendance_percent, avg_marks):
+        risk = 0
+
+        # Attendance factor
+        if attendance_percent < 70:
+            risk += 60
+        elif attendance_percent < 80:
+            risk += 30
+
+        # Marks factor
+        if avg_marks < 40:
+            risk += 40
+        elif avg_marks < 60:
+            risk += 20
+
+        return min(risk, 100)
+
+    # NEW method for worker.py
+    def calculate_risk(self, attendance_percent, marks_list):
+        """
+        Returns:
+            attendance_risk: bool
+            marks_risks: list of strings (reasons)
+        """
+        attendance_risk = attendance_percent < 75 # Standardized to 75% as per other files, or keep 70? Keeping 75 as standard. Actually old was 70. Let's stick to 70 unless user said otherwise. User didn't specify attendance. I will keep 70 to be safe or update to 75 if I see other files using it? `student.js` uses 75. I'll use 75.
+        attendance_risk = attendance_percent < 75 
+
+        marks_risks = []
+
+        if not marks_list:
+            return attendance_risk, []
+
+        # Helper: Group by subject for Average Calculation
+        subject_marks = {}
+
+        for m in marks_list:
+            # Handle both dictionary (from JSON) or object
+            # In worker, it comes as dict
+            score = float(m.get("marks", 0))
+            subject = m.get("subject", "Unknown")
+            exam_type = m.get("examType", "").upper()
+
+            # Initialize subject grouping
+            if subject not in subject_marks:
+                subject_marks[subject] = {"mid1": 0, "mid2": 0, "has_mid1": False, "has_mid2": False}
+
+            # 1. Mid Exams (< 14/40)
+            if exam_type in ["MID-1", "MID-2"]:
+                if exam_type == "MID-1":
+                    subject_marks[subject]["mid1"] = score
+                    subject_marks[subject]["has_mid1"] = True
+                elif exam_type == "MID-2":
+                    subject_marks[subject]["mid2"] = score
+                    subject_marks[subject]["has_mid2"] = True
+                
+                if score < 14:
+                    marks_risks.append(f"Low marks risk in {subject} ({exam_type})")
+
+            # 2. Unit Tests (< 4/10)
+            elif exam_type in ["UNIT-1", "UNIT-2"]:
+                if score < 4:
+                    marks_risks.append(f"Low marks risk in {subject} ({exam_type})")
+
+            # 3. Semester (< 24/60)
+            elif exam_type in ["FINAL", "SEMESTER"]:
+                if score < 24:
+                    marks_risks.append(f"Low marks risk in {subject} (Semester)")
+
+        # 4. Check Mid Averages
+        for subj, data in subject_marks.items():
+            if data["has_mid1"] and data["has_mid2"]:
+                avg = (data["mid1"] + data["mid2"]) / 2
+                if avg < 14:
+                    marks_risks.append(f"Low Mid Average risk in {subj} ({avg}/40)")
+
+        return attendance_risk, marks_risks
+</file>
+
+<file path="ml-flask/requirements.txt">
+flask
+pika
+redis
+numpy
+pandas
+scikit-learn
+</file>
+
+<file path="ml-flask/test_data.json">
+{
+  "attendance_percent": 60,
+  "avg_marks": 55
+}
+</file>
+
+<file path="ml-flask/worker.py">
+import json
+import pika
+import redis
+from model import RiskModel
+
+redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+
+model = RiskModel()
+
+connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host="localhost")
+)
+channel = connection.channel()
+
+QUEUE_NAME = "risk_updates"
+channel.queue_declare(queue=QUEUE_NAME, durable=True)
+
+def callback(ch, method, properties, body):
+    print("Received from RabbitMQ:", body)
+    data = json.loads(body)
+
+    rollNo = data["rollNo"]
+    attendance = data["attendance"]
+    marks = data["marks"]
+
+    att_risk, marks_risks = model.calculate_risk(attendance, marks)
+
+    key = f"risk:{rollNo}"
+
+    redis_client.set(
+        key,
+        json.dumps({
+            "attendance_risk": att_risk,
+            "marks_risks": marks_risks  # Now a list of strings
+        })
+    )
+
+    print(f"Saved to Redis => {key} = attendance_risk={att_risk}, marks_risks_count={len(marks_risks)}")
+
+channel.basic_consume(
+    queue=QUEUE_NAME,
+    on_message_callback=callback,
+    auto_ack=True
+)
+
+print("Worker running... Waiting for messages...")
+channel.start_consuming()
+</file>
+
+<file path="test_risk_v2.py">
+import sys
+import os
+
+# Add ml-flask to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'college-portal/ml-flask')))
+
+import model
+print(f"Loaded model from: {model.__file__}")
+
+from model import RiskModel
+
+def test():
+    m = RiskModel()
+    
+    # Mock data
+    marks = [
+        {"subject": "Math", "examType": "MID-1", "marks": 10}, 
+        {"subject": "Math", "examType": "MID-2", "marks": 10},
+        {"subject": "Physics", "examType": "UNIT-1", "marks": 3}
+    ]
+    
+    # Check if method accepts 2 args
+    try:
+        att, risks = m.calculate_risk(90, marks)
+        print("Risks Found:")
+        for r in risks:
+            print(f"- {r}")
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    test()
+</file>
+
+<file path="test_risk_v3.py">
+import sys
+import os
+
+# Add ml-flask to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'college-portal/ml-flask')))
+
+from model import RiskModel
+
+def test():
+    m = RiskModel()
+    
+    # Mock data
+    marks = [
+        {"subject": "Math", "examType": "MID-1", "marks": 10}, 
+    ]
+    
+    # Check if method accepts 2 args
+    try:
+        att, risks = m.calculate_risk(90, marks)
+        print("Risks Found:")
+        for r in risks:
+            print(f"- {r}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    test()
+</file>
+
+<file path="test_risk.py">
+import sys
+import os
+
+# Add ml-flask to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../college-portal/ml-flask')))
+
+from model import RiskModel
+
+def test():
+    model = RiskModel()
+    
+    # Case 1: Mid-1 Low (< 14), Mid-2 Low (< 14), Avg Low (< 14)
+    marks1 = [
+        {"subject": "Math", "examType": "MID-1", "marks": 10}, # Risk
+        {"subject": "Math", "examType": "MID-2", "marks": 10}, # Risk
+    ]
+    # Avg = 10 -> Risk
+    
+    # Case 2: Unit Test Low (< 4)
+    marks2 = [
+         {"subject": "Physics", "examType": "UNIT-1", "marks": 3} # Risk
+    ]
+    
+    # Case 3: Semester Low (< 24)
+    marks3 = [
+        {"subject": "Chem", "examType": "FINAL", "marks": 20} # Risk
+    ]
+    
+    # Case 4: Mid Avg Low BUT individual Not Low (e.g. 13 + 14 = 13.5)
+    # Actually if Mid1 < 14 it triggers individual risk too.
+    # Let's try 13 and 14. Avg = 13.5 (< 14).
+    marks4 = [
+        {"subject": "English", "examType": "MID-1", "marks": 13}, # Risk (<14)
+        {"subject": "English", "examType": "MID-2", "marks": 14}  # No Risk (=14)
+    ]
+    # Avg = 13.5 -> Risk
+    
+    all_marks = marks1 + marks2 + marks3 + marks4
+    
+    att_risk, risks = model.calculate_risk(90, all_marks)
+    
+    print("Risks Found:")
+    for r in risks:
+        print(f"- {r}")
+
+if __name__ == "__main__":
+    test()
+</file>
+
+</files>

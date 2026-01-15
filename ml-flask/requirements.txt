@@ -1,0 +1,6 @@
+flask
+pika
+redis
+numpy
+pandas
+scikit-learn

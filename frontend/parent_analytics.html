@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="parent.css">
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <h2>📊 Analytics</h2>
+        <ul>
+            <li><a href="parent_home.html">🏠 Home</a></li>
+            <li><a href="parent_alerts.html">⚠️ Alerts</a></li>
+            <li><a href="parent_analytics.html" class="active">📊 Analytics</a></li>
+            <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+        </ul>
+    </nav>
+
+    <h1>Student Performance Analytics</h1>
+
+    <!-- Attendance -->
+    <div class="graph-container">
+        <h3>📅 Attendance Trend</h3>
+        <canvas id="attendanceChart"></canvas>
+    </div>
+
+    <!-- Marks Containers with Specific IDs -->
+    <div id="mid1Container" class="graph-container hidden">
+        <h3>📝 Mid-1 Marks Performance</h3>
+        <canvas id="mid1Chart"></canvas>
+    </div>
+
+    <div id="mid2Container" class="graph-container hidden">
+        <h3>📝 Mid-2 Marks Performance</h3>
+        <canvas id="mid2Chart"></canvas>
+    </div>
+
+    <div id="unit1Container" class="graph-container hidden">
+        <h3>📝 Unit-1 Marks Performance</h3>
+        <canvas id="unit1Chart"></canvas>
+    </div>
+
+    <div id="unit2Container" class="graph-container hidden">
+        <h3>📝 Unit-2 Marks Performance</h3>
+        <canvas id="unit2Chart"></canvas>
+    </div>
+
+    <div id="finalContainer" class="graph-container hidden">
+        <h3>📝 Semester Marks Performance</h3>
+        <canvas id="finalChart"></canvas>
+    </div>
+
+    <script src="parent_analytics.js"></script>
+</body>
+
+</html>

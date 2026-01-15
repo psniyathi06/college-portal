@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Give Marks</title>
+  <link rel="stylesheet" href="design-system.css">
+  <link rel="stylesheet" href="teacher.css">
+</head>
+
+<body>
+
+  <nav class="navbar">
+    <h2 id="teacherName">👨‍🏫 Teacher Portal</h2>
+    <ul>
+      <li><a href="teacher_home.html">🏠 Home</a></li>
+      <li><a href="attendance_page.html">📋 Attendance</a></li>
+      <li><a href="marks_page.html" class="active">⭐ Marks</a></li>
+      <li><button id="logoutBtn" class="logout-btn">Logout</button></li>
+    </ul>
+  </nav>
+
+  <div class="content-container">
+    <div class="content-header">
+      <h1>⭐ Give Marks</h1>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-panel basic-box"
+      style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <div class="form-group">
+        <label>Select Exam Type:</label>
+        <select id="globalExamType">
+          <option value="">-- Select --</option>
+          <option value="MID-1">MID-1</option>
+          <option value="MID-2">MID-2</option>
+          <option value="UNIT-1">UNIT-1</option>
+          <option value="UNIT-2">UNIT-2</option>
+          <option value="SEMESTER">SEMESTER (FINAL)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Select Subject:</label>
+        <select id="globalSubject">
+          <option value="">-- Select --</option>
+          <option value="Physics">Physics</option>
+          <option value="Maths">Maths</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="English">English</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Select Date:</label>
+        <input type="date" id="globalDate"
+          style="padding: 10px; border: 1px solid var(--color-border-normal); border-radius: var(--radius-md);">
+      </div>
+
+      <button id="loadStudentsBtn" class="btn-primary" style="margin-left: auto;">Load Students</button>
+      <button id="saveAllBtn" class="btn-primary" style="background: var(--color-success);">Save All Marks</button>
+    </div>
+
+    <div id="studentsList"></div>
+  </div>
+
+  <script src="marks.js"></script>
+</body>
+
+</html>

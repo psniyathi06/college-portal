@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="student.css">
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>📚 Student Dashboard</h1>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="container">
+        <!-- Student Info Card -->
+        <div class="info-box">
+            <h2 id="studentName">Name: </h2>
+            <p><strong>Roll Number:</strong> <span id="studentRoll"></span></p>
+        </div>
+
+        <!-- Attendance Section -->
+        <div class="section">
+            <h3>📋 Attendance Overview</h3>
+
+            <div class="attendance-grid" style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+                <!-- Overall Card -->
+                <div class="card"
+                    style="text-align: center; padding: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div id="attendancePercentage"
+                        style="font-size: 3.5rem; font-weight: bold; color: var(--color-primary);">--%</div>
+                    <p style="color: var(--color-text-secondary); margin-top: 5px;">Overall Attendance</p>
+                    <div id="attendanceDetails" style="font-size: 0.9rem; color: var(--color-text-tertiary);">-- / --
+                    </div>
+                </div>
+
+                <!-- Subject-wise Grid -->
+                <div id="subjectAttendanceGrid"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
+                    <!-- Injected by JS -->
+                    <p>Loading subjects...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Marks Section -->
+        <div class="section">
+            <h3>⭐ Marks Records</h3>
+            <div id="marksContainer">
+                <!-- Dynamic Tables will be injected here -->
+                <p>Loading marks...</p>
+            </div>
+        </div>
+
+        <!-- Risk Status Section -->
+        <div class="section">
+            <h3>⚠️ Performance Status</h3>
+            <div class="risk-row">
+                <div class="risk-item">
+                    <label>Attendance Status:</label>
+                    <span id="attendanceRisk" class="badge">Loading...</span>
+                </div>
+                <div class="risk-item">
+                    <label>Marks Status:</label>
+                    <span id="marksRisk" class="badge">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="student.js"></script>
+</body>
+
+</html>

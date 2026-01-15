@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Portal - Login</title>
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="split-layout">
+        <!-- Left Side: Hero / Brand -->
+        <div class="hero-section">
+            <div class="hero-content">
+                <div class="brand-badge">Welcome to</div>
+                <h1>SMART CAMPUS PORTAL</h1>
+                <p>Empowering the next generation of students with a seamless digital college experience.</p>
+
+                <div class="hero-features">
+                    <div class="feature-item">
+                        <span class="icon">📊</span>
+                        <span>Real-time Analytics</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="icon">🎓</span>
+                        <span>Student Success</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="icon">🔒</span>
+                        <span>Secure Access</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual"></div>
+        </div>
+
+        <!-- Right Side: Login Form -->
+        <div class="login-section">
+            <div class="login-container">
+                <div class="login-header">
+                    <h2>Sign In</h2>
+                    <p>Access your dashboard</p>
+                </div>
+
+                <div class="login-box">
+                    <div class="form-field">
+                        <label for="role">I am a...</label>
+                        <div class="select-wrapper">
+                            <select id="role">
+                                <option value="student">Student</option>
+                                <option value="parent">Parent</option>
+                                <option value="teacher">Teacher</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Generic Login Fields -->
+                    <div id="login-fields" class="field-group">
+                        <div class="form-field">
+                            <label for="username">User ID / Name</label>
+                            <input id="username" type="text" placeholder="Enter your ID or Name">
+                        </div>
+                        <div class="form-field">
+                            <label for="password">Password</label>
+                            <input id="password" type="password" placeholder="•••••••••">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <div class="remember-me">
+                            <input type="checkbox" id="remember">
+                            <label for="remember">Remember me</label>
+                        </div>
+                        <a href="#" class="forgot-password">Forgot password?</a>
+                    </div>
+
+                    <button id="loginBtn" type="submit">
+                        <span>Sign In</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+
+                    <div id="msg"></div>
+                </div>
+
+                <footer class="login-footer">
+                    <p>&copy; 2024 KMIT Netra. All rights reserved.</p>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

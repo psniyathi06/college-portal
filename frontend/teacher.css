@@ -1,0 +1,417 @@
+@import url('design-system.css');
+
+/* ============================================
+   TEACHER DASHBOARD STYLES
+   ============================================ */
+body {
+    padding: 0;
+    background: var(--color-bg-primary);
+    min-height: 100vh;
+}
+
+/* ============================================
+   NAVBAR
+   ============================================ */
+.navbar {
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid var(--color-border-light);
+    padding: var(--spacing-md) var(--spacing-xl);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    backdrop-filter: blur(8px);
+}
+
+.navbar h2 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    background: var(--gradient-primary-alt);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.navbar ul {
+    list-style: none;
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+    margin: 0;
+    padding: 0;
+}
+
+.navbar ul li a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    font-size: var(--font-size-sm);
+    position: relative;
+    overflow: hidden;
+}
+
+.navbar ul li a:hover {
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
+}
+
+.navbar ul li a.active {
+    color: var(--color-primary);
+    background-color: var(--color-primary-light);
+    font-weight: var(--font-weight-semibold);
+}
+
+.logout-btn {
+    background-color: var(--color-white);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-fast);
+    font-size: var(--font-size-sm);
+    margin-left: var(--spacing-md);
+}
+
+.logout-btn:hover {
+    background-color: var(--color-error);
+    color: var(--color-white);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+}
+
+/* ============================================
+   WELCOME BOX (Hero)
+   ============================================ */
+.welcome-box {
+    margin: var(--spacing-3xl) auto;
+    text-align: center;
+    max-width: 800px;
+    padding: var(--spacing-3xl) var(--spacing-xl);
+    background: var(--gradient-primary);
+    border-radius: var(--radius-xl);
+    color: var(--color-white);
+    box-shadow: var(--shadow-xl);
+    position: relative;
+    overflow: hidden;
+}
+
+.welcome-box::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.welcome-box h1 {
+    font-size: var(--font-size-4xl);
+    color: var(--color-white);
+    margin-bottom: var(--spacing-md);
+    position: relative;
+    z-index: 10;
+}
+
+.welcome-box p {
+    font-size: var(--font-size-lg);
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+    position: relative;
+    z-index: 10;
+}
+
+/* ============================================
+   CONTENT CONTENT AREA
+   ============================================ */
+.content-container {
+    max-width: 1000px;
+    /* narrowed for better reading */
+    margin: 0 auto;
+    padding: var(--spacing-xl);
+}
+
+.dashboard-grid {
+    margin-bottom: var(--spacing-2xl);
+}
+
+.section-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-xl);
+}
+
+.section-card {
+    transition: all var(--transition-normal);
+    border: 2px solid transparent;
+    /* Prepare for border change */
+}
+
+.section-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+}
+
+.section-card.active-card {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary-lighter);
+}
+
+.section-card h3 {
+    margin-top: 0;
+    color: var(--color-primary);
+}
+
+.actions-panel {
+    animation: slideInUp var(--transition-normal) ease-out;
+}
+
+.action-buttons {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* ============================================
+   STUDENT CARDS
+   ============================================ */
+/* ============================================
+   CONTROLS PANEL (Marks Page)
+   ============================================ */
+.controls-panel {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-normal);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: flex-end;
+    /* Align inputs and buttons bottom */
+    flex-wrap: wrap;
+    box-shadow: var(--shadow-sm);
+
+    /* STICKY BEHAVIOR */
+    position: sticky;
+    top: 80px;
+    /* Adjust based on navbar height */
+    z-index: 90;
+    /* Below navbar (100) but above content */
+    backdrop-filter: blur(5px);
+    /* Nice effect if transparent, but we have bg color */
+}
+
+.controls-panel .form-group {
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 150px;
+}
+
+.controls-panel label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+.controls-panel select,
+.controls-panel input[type="date"] {
+    background: var(--color-white);
+    padding: 8px 12px;
+    height: 40px;
+    /* Uniform height */
+}
+
+.controls-panel button {
+    height: 40px;
+    padding: 0 var(--spacing-xl);
+    font-weight: var(--font-weight-semibold);
+    display: flex;
+    align-items: center;
+}
+
+/* ============================================
+   STUDENT CARDS (List Item Style)
+   ============================================ */
+.student-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    /* Slightly sharper */
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    /* Very subtle shadow */
+    display: grid;
+    grid-template-columns: 2fr 1.5fr auto;
+    /* Name/Info | Space | Controls */
+    align-items: center;
+    gap: var(--spacing-md);
+    transition: border-color var(--transition-fast);
+}
+
+.student-card:hover {
+    border-color: var(--color-primary);
+    background-color: #fafaff;
+    /* Very slight tint on hover */
+}
+
+.student-card strong {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+}
+
+.student-card div {
+    /* Helper for sub-text */
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.student-card input[type="number"] {
+    width: 100px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border-normal);
+    border-radius: var(--radius-md);
+    text-align: center;
+    font-weight: 500;
+}
+
+.student-card input[type="number"]:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+/* ============================================
+   DATA TABLE - TEACHER VIEW
+   ============================================ */
+.data-table {
+    background: var(--color-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    margin-top: var(--spacing-xl);
+    border: 1px solid var(--color-border-light);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    background-color: var(--color-bg-secondary);
+    padding: var(--spacing-md) var(--spacing-lg);
+    text-align: left;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border-normal);
+}
+
+tbody td {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-light);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+tbody tr:hover {
+    background-color: var(--color-bg-primary);
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================
+   FORM STYLES
+   ============================================ */
+.form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border-normal);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    transition: all var(--transition-fast);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: stretch;
+    }
+
+    .navbar ul {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .student-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .student-card-actions {
+        width: 100%;
+        margin-top: var(--spacing-md);
+    }
+
+    .student-card-actions button {
+        flex: 1;
+        justify-content: center;
+    }
+}

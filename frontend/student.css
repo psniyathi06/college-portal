@@ -1,0 +1,258 @@
+@import url('design-system.css');
+
+/* ============================================
+   STUDENT DASHBOARD STYLES
+   ============================================ */
+body {
+    padding: 0;
+    background: var(--color-bg-primary);
+    min-height: 100vh;
+}
+
+/* ============================================
+   HEADER / NAVBAR
+   ============================================ */
+.header {
+    background: var(--color-white);
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-bottom: 1px solid var(--color-border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.header h1 {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    background: var(--gradient-primary-alt);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.logout-btn {
+    background-color: var(--color-white);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-fast);
+}
+
+.logout-btn:hover {
+    background-color: var(--color-error);
+    color: var(--color-white);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+}
+
+/* ============================================
+   MAIN CONTAINER
+   ============================================ */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--spacing-lg);
+    /* Reduced from 2xl */
+    animation: fadeIn var(--transition-normal) ease-out;
+}
+
+/* ... (fadeIn keyframes unchanged) ... */
+
+/* ============================================
+   INFO CARD (Welcome Section)
+   ============================================ */
+.info-box {
+    background: var(--gradient-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    /* Reduced from xl/2xl */
+    margin-bottom: var(--spacing-lg);
+    /* Reduced from 2xl */
+    box-shadow: var(--shadow-lg);
+    color: var(--color-white);
+    position: relative;
+    overflow: hidden;
+    border: none;
+}
+
+/* ... (decorative shapes unchanged) ... */
+
+/* ============================================
+   SECTION CARDS
+   ============================================ */
+.section {
+    background: var(--color-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    /* Reduced from xl */
+    margin-bottom: var(--spacing-lg);
+    /* Reduced from 2xl */
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-normal);
+}
+
+.section:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.section h3 {
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: var(--spacing-md);
+}
+
+thead th {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.05em;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-normal);
+}
+
+thead th:first-child {
+    border-top-left-radius: var(--radius-md);
+}
+
+thead th:last-child {
+    border-top-right-radius: var(--radius-md);
+}
+
+tbody td {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-light);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+tbody tr:hover {
+    background-color: var(--color-bg-primary);
+}
+
+.table-empty {
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-style: italic;
+    background-color: var(--color-bg-primary);
+}
+
+/* ============================================
+   RISK STATUS SECTION
+   ============================================ */
+.risk-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md) 0;
+}
+
+.risk-item {
+    background: var(--color-bg-secondary);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    border: 1px solid var(--color-border-light);
+}
+
+.risk-item label {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+/* Badges */
+.badge {
+    display: inline-flex;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+}
+
+#attendanceRisk.at-risk,
+#marksRisk.at-risk {
+    background-color: var(--color-error-light);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+}
+
+#attendanceRisk.good,
+#marksRisk.good {
+    background-color: var(--color-success-light);
+    color: var(--color-success);
+    border: 1px solid var(--color-success);
+}
+
+#attendanceRisk.warning,
+#marksRisk.warning {
+    background-color: var(--color-warning-light);
+    color: var(--color-warning);
+    border: 1px solid var(--color-warning);
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: stretch;
+        text-align: center;
+    }
+
+    .container {
+        padding: var(--spacing-lg);
+    }
+
+    .info-box {
+        padding: var(--spacing-lg);
+        text-align: center;
+    }
+
+    .info-box::before {
+        display: none;
+    }
+
+    .section {
+        padding: var(--spacing-lg);
+    }
+}
